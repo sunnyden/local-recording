@@ -13,12 +13,12 @@ jobs:
   python-and-infrastructure:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Validate workflow syntax
         uses: rhysd/actionlint@v1.7.12
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -51,10 +51,10 @@ jobs:
         shell: pwsh
         run: ./project/infra/tests/Test-Scripts.ps1
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Build proxy image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: project/proxy
           load: true
@@ -62,7 +62,7 @@ jobs:
           tags: local-recording-proxy:${{ github.sha }}
 
       - name: Scan proxy image
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: local-recording-proxy:${{ github.sha }}
           format: sarif
@@ -82,7 +82,7 @@ jobs:
   firmware:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build safe-default ESP32-S3 firmware
         uses: espressif/esp-idf-ci-action@v1
