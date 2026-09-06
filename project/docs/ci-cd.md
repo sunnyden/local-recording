@@ -38,8 +38,13 @@ Deployment application: `local-recording-github-deploy`
 Federated subject:
 
 ```text
-repo:sunnyden/local-recording:environment:production
+repo:sunnyden@4323095/local-recording@1359280899:environment:production
 ```
+
+GitHub currently emits immutable owner/repository IDs in the OIDC subject.
+`Configure-GitHubOidc.ps1` resolves these from the GitHub API and refuses
+unexpected metadata. A repository rename therefore does not silently broaden
+the trust.
 
 The identity has:
 

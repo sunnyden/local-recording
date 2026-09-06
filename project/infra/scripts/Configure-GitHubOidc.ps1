@@ -16,7 +16,15 @@ if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' -or
     $Environment -notmatch '^[A-Za-z0-9_.-]+$') {
     throw 'Repository or environment contains unsupported characters.'
 }
-$subject = "repo:$Repository`:environment:$Environment"
+$repositoryParts = $Repository.Split('/')
+$metadataText = & gh api "repos/$Repository" --jq '{owner:.owner.login,owner_id:.owner.id,name:.name,repo_id:.id}'
+if ($LASTEXITCODE -ne 0) { throw 'Unable to resolve immutable GitHub repository identity.' }
+$metadata = $metadataText | ConvertFrom-Json -AsHashtable
+if ($metadata.owner -ne $repositoryParts[0] -or $metadata.name -ne $repositoryParts[1] -or
+    $metadata.owner_id -notmatch '^[0-9]+$' -or $metadata.repo_id -notmatch '^[0-9]+$') {
+    throw 'GitHub returned unexpected repository identity metadata.'
+}
+$subject = "repo:$($metadata.owner)@$($metadata.owner_id)/$($metadata.name)@$($metadata.repo_id)`:environment:$Environment"
 $groupId = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup"
 $registryId = "$groupId/providers/Microsoft.ContainerRegistry/registries/$RegistryName"
 Write-Host "GitHub OIDC subject: $subject"
@@ -51,19 +59,20 @@ if ($principals.Count -eq 0) {
 }
 
 $credentialResponse = Invoke-GraphJson -Method GET -Path "/applications/$($app.id)/federatedIdentityCredentials"
-$matching = @($credentialResponse.value | Where-Object { $_.name -eq 'github-production' })
+$credentialName = 'github-production-immutable'
+$matching = @($credentialResponse.value | Where-Object { $_.name -eq $credentialName })
 $body = @{
-    name = 'github-production'
+    name = $credentialName
     issuer = 'https://token.actions.githubusercontent.com'
     subject = $subject
     audiences = @('api://AzureADTokenExchange')
-    description = 'GitHub Actions production environment for sunnyden/local-recording'
+    description = 'Immutable GitHub repository identity for the production environment'
 }
 if ($matching.Count -eq 0) {
     $null = Invoke-GraphJson -Method POST -Path "/applications/$($app.id)/federatedIdentityCredentials" -Body $body
 } elseif ($matching.Count -gt 1 -or $matching[0].subject -ne $subject -or
           $matching[0].issuer -ne $body.issuer) {
-    throw 'Existing github-production federated credential does not match the requested trust.'
+    throw 'Existing immutable production federated credential does not match the requested trust.'
 }
 
 foreach ($assignment in @(
