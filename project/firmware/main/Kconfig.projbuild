@@ -1,0 +1,40 @@
+menu "Recorder"
+config RECORDER_SPI_LCD_CONFIRMED
+    bool "Physical SPI LCD jumper configuration has been verified"
+    default n
+    help
+        Verify P5: IO_SEL to LCD_DC, IIC_INT isolated from SPI_MISO,
+        no RGB touch controller or 1WIRE device driving GPIO40.
+        Without this selection GPIO40 stays high impedance; serial status works.
+config RECORDER_DEVELOPMENT_CREDENTIAL_RISK
+    bool "Explicitly accept development-board physical credential extraction risk"
+    depends on !NVS_ENCRYPTION
+    default n
+    help
+        Allows credential persistence in ordinary NVS. This is NOT encrypted or
+        secure against physical access. Never enable without the owner's approval.
+config RECORDER_NVS_HMAC_EXISTING
+    bool "Encrypted NVS using an already-provisioned protected HMAC key"
+    depends on SOC_HMAC_SUPPORTED && NVS_ENCRYPTION && NVS_SEC_KEY_PROTECT_NONE
+    depends on !SECURE_FLASH_ENC_ENABLED && !SECURE_BOOT
+    default n
+    help
+        Requires an existing HMAC_UP eFuse key with read, write, and purpose
+        write protection. This profile never generates keys or programs eFuses.
+        Select NVS Encryption and key protection scheme None first; firmware
+        installs a read-only HMAC provider instead of the SDK auto-generation path.
+config RECORDER_NVS_HMAC_KEY_ID
+    int "Already-provisioned HMAC key ID (KEY0 through KEY5)"
+    depends on RECORDER_NVS_HMAC_EXISTING
+    range 0 5
+    default 0
+config RECORDER_CLIENT_ID
+    string "Microsoft public application A client ID"
+    default "bdbb7442-7892-471e-9ee4-95d4e9c02a37"
+config RECORDER_PROXY_SCOPE
+    string "API B delegated scope"
+    default "api://30f56876-0c90-48b8-aff0-654b5000fd43/access_as_user"
+config RECORDER_PROXY_URL
+    string "Authenticated WSS proxy URL"
+    default ""
+endmenu

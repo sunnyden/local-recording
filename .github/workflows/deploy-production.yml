@@ -1,0 +1,225 @@
+name: Deploy production proxy
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - ".github/workflows/deploy-production.yml"
+      - "project/proxy/**"
+      - "project/infra/bicep/proxy.bicep"
+  workflow_dispatch:
+    inputs:
+      image_digest:
+        description: Existing recorder-proxy sha256 digest to redeploy without rebuilding
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+
+concurrency:
+  group: local-recording-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      REGISTRY_NAME: ${{ vars.REGISTRY_NAME }}
+      REGISTRY_SERVER: ${{ vars.REGISTRY_SERVER }}
+      CONTAINER_ENVIRONMENT_ID: ${{ vars.CONTAINER_ENVIRONMENT_ID }}
+      PROXY_IDENTITY_ID: ${{ vars.PROXY_IDENTITY_ID }}
+      PROXY_IDENTITY_CLIENT_ID: ${{ vars.PROXY_IDENTITY_CLIENT_ID }}
+      API_B_CLIENT_ID: ${{ vars.API_B_CLIENT_ID }}
+      PUBLIC_CLIENT_A_ID: ${{ vars.PUBLIC_CLIENT_A_ID }}
+      ALLOWED_USER_OID: ${{ vars.ALLOWED_USER_OID }}
+      VOICELIVE_ENDPOINT: ${{ vars.VOICELIVE_ENDPOINT }}
+      VOICELIVE_MODEL: ${{ vars.VOICELIVE_MODEL }}
+      VOICELIVE_PROFILE: ${{ vars.VOICELIVE_PROFILE }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate workflow syntax
+        uses: rhysd/actionlint@v1.7.12
+
+      - name: Guard required production configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID
+            AZURE_RESOURCE_GROUP AZURE_LOCATION REGISTRY_NAME REGISTRY_SERVER
+            CONTAINER_ENVIRONMENT_ID PROXY_IDENTITY_ID PROXY_IDENTITY_CLIENT_ID
+            API_B_CLIENT_ID PUBLIC_CLIENT_A_ID ALLOWED_USER_OID
+            VOICELIVE_ENDPOINT VOICELIVE_MODEL VOICELIVE_PROFILE
+          )
+          for name in "${required[@]}"; do
+            value="${!name-}"
+            if [[ -z "${value//[[:space:]]/}" ]]; then
+              echo "::error::Production environment variable ${name} is required."
+              exit 1
+            fi
+          done
+          uuid='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          [[ "$ALLOWED_USER_OID" =~ $uuid ]] || {
+            echo "::error::ALLOWED_USER_OID must be the explicitly enrolled consumer oid."
+            exit 1
+          }
+
+      - uses: azure/setup-bicep@v2
+
+      - name: Build and lint deployment template
+        run: |
+          bicep build --file project/infra/bicep/proxy.bicep --stdout > /dev/null
+          bicep lint --file project/infra/bicep/proxy.bicep
+
+      - name: Azure login with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Select image mode
+        id: mode
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.image_digest }}" ]]; then
+            [[ "${{ inputs.image_digest }}" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+              echo "::error::image_digest must be sha256 followed by 64 lowercase hex characters."
+              exit 1
+            }
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.mode.outputs.build == 'true'
+
+      - name: Log in to private ACR
+        if: steps.mode.outputs.build == 'true'
+        run: az acr login --name "$REGISTRY_NAME"
+
+      - name: Build and push proxy
+        if: steps.mode.outputs.build == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: project/proxy
+          push: true
+          pull: true
+          tags: ${{ env.REGISTRY_SERVER }}/recorder-proxy:sha-${{ github.sha }}
+
+      - name: Resolve immutable image
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.mode.outputs.build }}" == "true" ]]; then
+            digest=$(az acr repository show \
+              --name "$REGISTRY_NAME" \
+              --image "recorder-proxy:sha-${GITHUB_SHA}" \
+              --query digest -o tsv)
+          else
+            digest="${{ inputs.image_digest }}"
+          fi
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::Registry did not return a valid immutable digest."
+            exit 1
+          }
+          echo "ref=${REGISTRY_SERVER}/recorder-proxy@${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Scan immutable image
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ${{ steps.image.outputs.ref }}
+          format: sarif
+          output: trivy-results.sarif
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Upload scan results
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Deploy proxy with existing managed identities
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          environment_json=$(jq -nc \
+            --arg api "$API_B_CLIENT_ID" \
+            --arg client "$PUBLIC_CLIENT_A_ID" \
+            --arg user "$ALLOWED_USER_OID" \
+            --arg managed "$PROXY_IDENTITY_CLIENT_ID" \
+            --arg endpoint "$VOICELIVE_ENDPOINT" \
+            --arg model "$VOICELIVE_MODEL" \
+            --arg profile "$VOICELIVE_PROFILE" \
+            '{
+              API_B_CLIENT_ID:$api,
+              PUBLIC_CLIENT_A_ID:$client,
+              ALLOWED_USER_OID:$user,
+              AZURE_CLIENT_ID:$managed,
+              VOICELIVE_ENDPOINT:$endpoint,
+              VOICELIVE_MODEL:$model,
+              VOICELIVE_PROFILE:$profile,
+              VOICELIVE_API_VERSION:"2026-07-15",
+              MAX_SESSION_SECONDS:"900"
+            }')
+          outputs=$(az deployment group create \
+            --name "proxy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --template-file project/infra/bicep/proxy.bicep \
+            --parameters \
+              location="$AZURE_LOCATION" \
+              namePrefix=recorder \
+              environmentId="$CONTAINER_ENVIRONMENT_ID" \
+              identityId="$PROXY_IDENTITY_ID" \
+              registryServer="$REGISTRY_SERVER" \
+              image="${{ steps.image.outputs.ref }}" \
+              environmentVariables="$environment_json" \
+            --query properties.outputs -o json)
+          {
+            echo "proxy_url=$(jq -r '.proxyUrl.value' <<<"$outputs")"
+            echo "voice_url=$(jq -r '.voiceWebSocketUrl.value' <<<"$outputs")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Wait for authenticated proxy readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..36}; do
+            status=$(curl --silent --show-error --output ready.json \
+              --write-out '%{http_code}' "${{ steps.deploy.outputs.proxy_url }}/readyz" || true)
+            if [[ "$status" == "200" ]] && jq -e '.status == "ready"' ready.json >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Proxy did not become ready."
+          cat ready.json || true
+          exit 1
+
+      - name: Write deployment summary
+        run: |
+          {
+            echo "## Voice proxy deployment"
+            echo
+            echo "- Image: \`${{ steps.image.outputs.ref }}\`"
+            echo "- Health: ${{ steps.deploy.outputs.proxy_url }}/readyz"
+            echo "- Device endpoint: \`${{ steps.deploy.outputs.voice_url }}\`"
+            echo "- Scale: 0-1 Consumption replicas"
+          } >> "$GITHUB_STEP_SUMMARY"

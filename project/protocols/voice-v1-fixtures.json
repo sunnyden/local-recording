@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "description": "Canonical little-endian wire fixtures shared by firmware and proxy tests.",
+  "valid": [
+    {
+      "name": "microphone-extreme-samples",
+      "kind": 1,
+      "epoch": 0,
+      "sequence": 0,
+      "sample_position": 0,
+      "samples": [-32768, -1, 0, 32767],
+      "hex": "4552563101010000000000000000000000000000000000000080ffff0000ff7f"
+    }
+  ],
+  "invalid": [
+    {"name": "truncated-header", "hex": "455256310101"},
+    {"name": "no-pcm", "hex": "455256310101000000000000000000000000000000000000"},
+    {"name": "odd-pcm", "hex": "45525631010100000000000000000000000000000000000000"},
+    {"name": "unknown-version", "hex": "4552563102010000000000000000000000000000000000000000"},
+    {"name": "nonzero-reserved", "hex": "4552563101010100000000000000000000000000000000000000"}
+  ]
+}

@@ -1,0 +1,92 @@
+name: PR validation
+
+on:
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  python-and-infrastructure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate workflow syntax
+        uses: rhysd/actionlint@v1.7.12
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            project/proxy/requirements-test.lock
+            project/companion/pyproject.toml
+
+      - name: Install proxy and companion test dependencies
+        run: |
+          python -m pip install --requirement project/proxy/requirements-test.lock
+          python -m pip install --editable 'project/companion[test]'
+
+      - name: Run proxy, companion, infrastructure and protocol tests
+        run: |
+          PYTHONPATH=project/proxy/src python -m pytest project/proxy/tests project/infra/tests/test_enrollment.py project/tests -q
+          PYTHONPATH=project/companion/src python -m pytest project/companion/tests -q
+
+      - uses: azure/setup-bicep@v2
+
+      - name: Build and lint Bicep
+        run: |
+          bicep build --file project/infra/bicep/base.bicep --stdout > /dev/null
+          bicep lint --file project/infra/bicep/base.bicep
+          bicep build --file project/infra/bicep/proxy.bicep --stdout > /dev/null
+          bicep lint --file project/infra/bicep/proxy.bicep
+          bicep build --file project/infra/bicep/identity-probe.bicep --stdout > /dev/null
+          bicep lint --file project/infra/bicep/identity-probe.bicep
+
+      - name: Run infrastructure PowerShell tests
+        shell: pwsh
+        run: ./project/infra/tests/Test-Scripts.ps1
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build proxy image
+        uses: docker/build-push-action@v6
+        with:
+          context: project/proxy
+          load: true
+          pull: true
+          tags: local-recording-proxy:${{ github.sha }}
+
+      - name: Scan proxy image
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: local-recording-proxy:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Upload scan results
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results.sarif
+
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build safe-default ESP32-S3 firmware
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v6.1
+          target: esp32s3
+          path: project/firmware

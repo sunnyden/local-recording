@@ -1,0 +1,17 @@
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/*.egg-info/
+**/build/
+**/managed_components/
+**/sdkconfig
+**/sdkconfig.old
+**/.env
+**/.env.*
+!**/.env.example
+infra/.state/
+*.pem
+*.key
+*.pfx
+*.bin
+*.wav

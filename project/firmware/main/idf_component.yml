@@ -1,0 +1,5 @@
+dependencies:
+  idf: ">=6.1,<6.2"
+  espressif/network_provisioning: "1.2.4"
+  espressif/esp_websocket_client: "1.8.0"
+  espressif/cjson: "1.7.19~2"

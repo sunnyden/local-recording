@@ -1,0 +1,418 @@
+import asyncio
+from contextlib import suppress
+from dataclasses import dataclass, field
+import time
+from uuid import uuid4
+
+import anyio
+from starlette.websockets import WebSocketDisconnect
+
+from .audio import AudioError, OutputAudio
+from .protocol import Frame, ProtocolError, Sequence, control, parse_control
+from .providers import ProviderError
+
+
+class SessionError(Exception):
+    def __init__(self, code, retryable=False):
+        self.code = code
+        self.retryable = retryable
+
+
+class Stopped(Exception):
+    pass
+
+
+class TimedQueue:
+    def __init__(self, count, age):
+        self.queue = asyncio.Queue(maxsize=count)
+        self.age = age
+
+    async def put(self, value):
+        born = time.monotonic()
+        try:
+            async with asyncio.timeout(self.age):
+                await self.queue.put((born, value))
+        except TimeoutError:
+            raise SessionError("backpressure", True) from None
+
+    async def get(self):
+        born, value = await self.queue.get()
+        if time.monotonic() - born > self.age:
+            raise SessionError("queue_expired", True)
+        return born, value
+
+
+@dataclass
+class Playback:
+    epoch: int
+    response_id: str
+    item_id: str
+    content_index: int
+    audio: OutputAudio
+    sequence: int = 0
+    produced: int = 0
+    sent: int = 0
+    played: int = 0
+    done: bool = False
+    end_sent: bool = False
+    cleared: bool = False
+    clear_sent: bool = False
+    acknowledged: bool = False
+    clear_deadline: float = 0
+    next_send_at: float = 0
+    last_progress: float = field(default_factory=time.monotonic)
+
+
+class VoiceSession:
+    def __init__(self, socket, provider, settings, principal):
+        self.socket, self.provider = socket, provider
+        self.settings, self.principal = settings, principal
+        self.id = str(uuid4())
+        self.microphone = TimedQueue(settings.queue_frames, settings.queue_age_seconds)
+        # Fifteen audio frames leave room within the 500 ms age limit for the
+        # producer's wait and 100 ms device progress-report batching.
+        self.outbound = TimedQueue(settings.output_queue_frames, settings.queue_age_seconds)
+        self.mic_sequence = Sequence()
+        self.streams = {}
+        self.retired = {}
+        self.epoch = 0
+        self.current_response = None
+        self.response_pending = False
+        self.response_requested = False
+        self.speech_active = False
+        self.response_lock = asyncio.Lock()
+        self.discard_responses = {}
+        self.progress_changed = asyncio.Event()
+        self.started_at = time.monotonic()
+        self.ready = False
+        self.tasks = []
+        self.closing = False
+
+    async def emit(self, kind, **fields):
+        await self.outbound.put(control(kind, **fields))
+
+    async def _receive(self):
+        message = await self.socket.receive()
+        if message["type"] == "websocket.disconnect":
+            raise WebSocketDisconnect(message.get("code", 1000))
+        return message
+
+    async def handshake(self):
+        async with asyncio.timeout(self.settings.handshake_seconds):
+            first = await self._receive()
+            if first.get("text") is None or parse_control(first["text"])["type"] != "hello":
+                raise ProtocolError("Expected hello first")
+            await self.socket.send_json(control("state", state="connecting"))
+            # Race connection setup with expiry/disconnect; no audio is accepted before ready.
+            opening = asyncio.create_task(self.provider.open())
+            incoming = asyncio.create_task(self._receive())
+            try:
+                remaining = self.principal.expires_at - time.time()
+                if remaining <= 0:
+                    raise SessionError("token_expired")
+                done, _ = await asyncio.wait(
+                    (opening, incoming), timeout=min(remaining, self.settings.max_session_seconds),
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if incoming in done:
+                    message = incoming.result()
+                    if message.get("text") is not None and parse_control(message["text"])["type"] == "stop":
+                        raise Stopped()
+                    raise ProtocolError("Audio/control before ready")
+                if opening not in done:
+                    raise SessionError("token_expired" if time.time() >= self.principal.expires_at
+                                       else "session_limit")
+                opening.result()
+            finally:
+                for task in (opening, incoming):
+                    if not task.done():
+                        task.cancel()
+                with anyio.CancelScope(shield=True):
+                    await asyncio.gather(opening, incoming, return_exceptions=True)
+            if time.time() >= self.principal.expires_at:
+                raise SessionError("token_expired")
+            await self.socket.send_json(control("ready", session_id=self.id,
+                                                max_session_seconds=self.settings.max_session_seconds))
+            self.ready = True
+            await self.socket.send_json(control("state", state="listening"))
+
+    async def device_reader(self):
+        while True:
+            message = await self._receive()
+            if message.get("bytes") is not None:
+                frame = Frame.parse(message["bytes"])
+                self.mic_sequence.accept(frame)
+                await self.microphone.put(frame.pcm)
+                continue
+            if message.get("text") is None:
+                raise ProtocolError("Expected audio or control")
+            data = parse_control(message["text"])
+            if data["type"] == "stop":
+                raise Stopped()
+            if data["type"] == "hello":
+                raise ProtocolError("Repeated hello")
+            await self.playback_report(data)
+
+    async def playback_report(self, data):
+        stream = self.streams.get(data["epoch"])
+        if stream is None:
+            previous = self.retired.get(data["epoch"])
+            if (previous and previous[0] == data["played_samples"]
+                    and (data["type"] == "playback.progress" or previous[1])):
+                return
+            raise ProtocolError("Unknown playback epoch")
+        played = data["played_samples"]
+        if not stream.played <= played <= stream.sent or stream.acknowledged:
+            raise ProtocolError("Invalid played position")
+        if played > stream.played:
+            stream.last_progress = time.monotonic()
+        stream.played = played
+        self.progress_changed.set()
+        if data["type"] == "playback.cleared":
+            if not stream.clear_sent:
+                raise ProtocolError("Unexpected clear acknowledgment")
+            # Only the final actual DAC-consumed sample position is authoritative.
+            await self.provider.truncate(stream.item_id, stream.content_index, played)
+            stream.acknowledged = True
+            await self._maybe_respond()
+
+    async def _maybe_respond(self):
+        async with self.response_lock:
+            if (not self.response_pending or self.speech_active or self.current_response
+                    or self.response_requested
+                    or any(s.cleared and not s.acknowledged for s in self.streams.values())):
+                return
+            self.response_pending = False
+            self.response_requested = True
+            await self.provider.respond()
+
+    async def microphone_writer(self):
+        while True:
+            _, pcm = await self.microphone.get()
+            await self.provider.append(pcm)
+
+    def _retire_streams(self):
+        for epoch, stream in list(self.streams.items()):
+            if stream.acknowledged or (stream.end_sent and stream.played == stream.produced and not stream.cleared):
+                self.retired[epoch] = (stream.played, stream.cleared)
+                del self.streams[epoch]
+        while len(self.retired) > 4:
+            del self.retired[next(iter(self.retired))]
+
+    async def _stream(self, event):
+        for stream in self.streams.values():
+            if (stream.item_id, stream.content_index) == (event.item_id, event.content_index):
+                if stream.response_id != event.response_id:
+                    raise ProviderError()
+                return stream
+        try:
+            async with asyncio.timeout(self.settings.queue_age_seconds):
+                while any(not s.cleared and (not s.end_sent or s.played != s.produced)
+                          for s in self.streams.values()):
+                    self.progress_changed.clear()
+                    await self.progress_changed.wait()
+        except TimeoutError:
+            raise SessionError("playback_backlog", True) from None
+        self._retire_streams()
+        if len(self.streams) >= 4:
+            raise SessionError("playback_backlog", True)
+        self.epoch += 1
+        stream = Playback(self.epoch, event.response_id, event.item_id, event.content_index,
+                          OutputAudio(self.provider.sample_rate))
+        self.streams[stream.epoch] = stream
+        await self.emit("playback.start", epoch=stream.epoch)
+        await self.emit("state", state="speaking")
+        return stream
+
+    async def _audio(self, stream, pcm=b"", final=False):
+        for packet in stream.audio.feed(pcm, final=final):
+            frame = Frame(2, stream.epoch, stream.sequence, stream.produced, packet)
+            stream.sequence += 1
+            stream.produced += len(packet) // 2
+            await self.outbound.put(frame)
+        if final:
+            stream.done = True
+            await self.emit("playback.end", epoch=stream.epoch)
+
+    async def interrupt(self):
+        self._retire_streams()
+        if self.current_response:
+            self.discard_responses.setdefault(self.current_response, None)
+        clearing = []
+        for stream in self.streams.values():
+            if stream.cleared or stream.acknowledged:
+                continue
+            self.discard_responses.setdefault(stream.response_id, None)
+            stream.cleared = True
+            clearing.append(stream.epoch)
+        self.progress_changed.set()
+        for epoch in clearing:
+            # Writer discards obsolete queued audio. It alone sends clear, preserving wire order.
+            await self.emit("playback.clear", epoch=epoch)
+        while len(self.discard_responses) > 32:
+            del self.discard_responses[next(iter(self.discard_responses))]
+        await self.emit("state", state="listening")
+
+    async def provider_reader(self):
+        async for event in self.provider.events():
+            if event.type == "speech_started":
+                self.speech_active = True
+                await self.interrupt()
+            elif event.type == "speech_stopped":
+                self.speech_active = False
+                await self.emit("state", state="listening")
+            elif event.type == "input_committed":
+                self.response_pending = True
+                await self._maybe_respond()
+            elif event.type == "response_started":
+                if self.current_response is not None or not self.response_requested:
+                    raise ProviderError()
+                if self.speech_active:
+                    # Don't emit a response created during an in-flight VAD/request race.
+                    raise SessionError("interruption_race", True)
+                self.response_requested = False
+                self.current_response = event.response_id
+            elif event.type in ("audio", "audio_done"):
+                if event.response_id in self.discard_responses:
+                    continue
+                if event.response_id != self.current_response:
+                    raise ProviderError()
+                stream = await self._stream(event)
+                if stream.cleared:
+                    continue
+                if stream.done:
+                    raise ProviderError()
+                await self._audio(stream, event.pcm, final=event.type == "audio_done")
+            elif event.type == "response_done":
+                if event.response_id != self.current_response:
+                    raise ProviderError()
+                for stream in list(self.streams.values()):
+                    if stream.response_id == event.response_id and not stream.cleared and not stream.done:
+                        await self._audio(stream, final=True)
+                self.current_response = None
+                # Recent canceled IDs discard late audio; older unknown IDs fail closed.
+                await self.emit("state", state="listening")
+                await self._maybe_respond()
+            else:
+                raise ProviderError()
+        raise ProviderError()
+
+    async def _send_frame(self, born, frame):
+        stream = self.streams.get(frame.epoch)
+        if not stream or stream.cleared:
+            return
+        while (sum(s.sent - s.played for s in self.streams.values() if not s.cleared)
+               + len(frame.pcm) // 2 > self.settings.max_unplayed_samples):
+            self.progress_changed.clear()
+            remaining = self.settings.queue_age_seconds - (time.monotonic() - born)
+            if remaining <= 0:
+                raise SessionError("playback_backlog", True)
+            try:
+                async with asyncio.timeout(remaining):
+                    await self.progress_changed.wait()
+            except TimeoutError:
+                raise SessionError("playback_backlog", True) from None
+            if stream.cleared:
+                return
+        # Credit covers DMA plus the software ring, but initially DMA contains
+        # silence. Limit catch-up to 40 ms plus this packet, then pace at 16 kHz.
+        now = time.monotonic()
+        send_at = max(stream.next_send_at, now - 0.04)
+        if send_at > now:
+            await asyncio.sleep(send_at - now)
+        send_at = max(send_at, time.monotonic() - 0.04)
+        if stream.cleared:
+            return
+        if time.monotonic() - born > self.settings.queue_age_seconds:
+            raise SessionError("queue_expired", True)
+        stream.next_send_at = send_at + len(frame.pcm) / 32000
+        if stream.sent == 0:
+            stream.last_progress = time.monotonic()
+        stream.sent += len(frame.pcm) // 2
+        await self.socket.send_bytes(frame.encode())
+
+    async def device_writer(self):
+        while True:
+            born, value = await self.outbound.get()
+            async with asyncio.timeout(self.settings.queue_age_seconds):
+                if isinstance(value, Frame):
+                    await self._send_frame(born, value)
+                    continue
+                stream = self.streams.get(value.get("epoch"))
+                if value["type"] == "playback.end" and (not stream or stream.cleared):
+                    continue
+                # A start can precede a clear even if interruption happened before its first packet.
+                if value["type"] == "playback.clear":
+                    stream.clear_sent = True
+                    stream.clear_deadline = time.monotonic() + self.settings.clear_timeout_seconds
+                elif value["type"] == "playback.end":
+                    stream.end_sent = True
+                    self.progress_changed.set()
+                await self.socket.send_json(value)
+
+    async def watchdog(self):
+        while True:
+            now = time.monotonic()
+            if time.time() >= self.principal.expires_at:
+                raise SessionError("token_expired")
+            if now - self.started_at >= self.settings.max_session_seconds:
+                raise SessionError("session_limit")
+            for stream in self.streams.values():
+                if stream.clear_sent and not stream.acknowledged and now > stream.clear_deadline:
+                    raise SessionError("clear_timeout", True)
+                if not stream.cleared and stream.sent > stream.played:
+                    if now - stream.last_progress > self.settings.playback_stall_seconds:
+                        raise SessionError("playback_stalled", True)
+            await asyncio.sleep(0.05)
+
+    async def _finish(self, error=None):
+        if self.closing:
+            return
+        self.closing = True
+        with suppress(WebSocketDisconnect, OSError, RuntimeError, TimeoutError):
+            async with asyncio.timeout(1):
+                await self.socket.send_json(control("state", state="stopping"))
+                if error:
+                    await self.socket.send_json(control(
+                        "error", code=error.code, message="Voice session stopped.",
+                        retryable=error.retryable,
+                    ))
+                await self.socket.send_json(control("stop"))
+                await self.socket.close(code=1008 if error else 1000)
+
+    async def run(self):
+        error = None
+        try:
+            await self.handshake()
+            self.tasks = [asyncio.create_task(coro()) for coro in (
+                self.device_reader, self.microphone_writer, self.provider_reader,
+                self.device_writer, self.watchdog,
+            )]
+            done, _ = await asyncio.wait(self.tasks, return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                task.result()
+        except (Stopped, WebSocketDisconnect):
+            pass
+        except ProtocolError:
+            error = SessionError("protocol_error")
+        except (ProviderError, AudioError):
+            error = SessionError("provider_unavailable", True)
+        except SessionError as failure:
+            error = failure
+        except TimeoutError:
+            error = SessionError("timeout", True)
+        except OSError:
+            error = SessionError("connection_error", True)
+        finally:
+            # ASGI servers/test clients can use level-triggered AnyIO cancellation.
+            # Cleanup must not be canceled again at each await within that scope.
+            with anyio.CancelScope(shield=True):
+                for task in self.tasks:
+                    task.cancel()
+                await asyncio.gather(*self.tasks, return_exceptions=True)
+                try:
+                    await self.provider.close()
+                except ProviderError:
+                    error = error or SessionError("provider_unavailable", True)
+                finally:
+                    await self._finish(error)

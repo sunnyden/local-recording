@@ -1,0 +1,14 @@
+menu "Recorder disposable-card testing"
+
+config RECORDER_TEST_FORMAT_SD_ON_MOUNT_FAILURE
+    bool "Allow formatting the owner-approved disposable SD card on mount failure"
+    default n
+    depends on RECORDER_SPI_LCD_CONFIRMED
+    help
+        Destructive test-only option. Enable only after the owner explicitly
+        approves loss of all data on the connected SD card. Normal firmware
+        must leave this disabled. After the test, rebuild and flash with this
+        option disabled before using any other card. This never formats ESP
+        flash partitions and does not enable credential storage or write eFuses.
+
+endmenu

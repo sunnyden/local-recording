@@ -1,0 +1,2 @@
+# Compile-only profile. This does NOT constitute physical jumper verification.
+CONFIG_RECORDER_SPI_LCD_CONFIRMED=y

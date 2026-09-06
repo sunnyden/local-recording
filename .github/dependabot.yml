@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns: ["*"]
+  - package-ecosystem: pip
+    directory: /project/proxy
+    schedule:
+      interval: monthly
+    groups:
+      proxy-python:
+        patterns: ["*"]
+  - package-ecosystem: pip
+    directory: /project/companion
+    schedule:
+      interval: monthly
+    groups:
+      companion-python:
+        patterns: ["*"]

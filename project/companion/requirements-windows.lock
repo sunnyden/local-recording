@@ -1,0 +1,23 @@
+# Resolved on Windows x64 / CPython 3.14.5. Includes test/build dependencies.
+# Runtime requirements also have exact pins in pyproject.toml.
+bleak==1.1.1
+cffi==2.1.1
+colorama==0.4.6
+cryptography==46.0.5
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+protobuf==6.33.5
+pycparser==3.0
+Pygments==2.21.0
+pytest==9.0.2
+setuptools==80.9.0
+typing_extensions==4.16.0
+winrt-runtime==3.2.1
+winrt-Windows.Devices.Bluetooth==3.2.1
+winrt-Windows.Devices.Bluetooth.Advertisement==3.2.1
+winrt-Windows.Devices.Bluetooth.GenericAttributeProfile==3.2.1
+winrt-Windows.Devices.Enumeration==3.2.1
+winrt-Windows.Foundation==3.2.1
+winrt-Windows.Foundation.Collections==3.2.1
+winrt-Windows.Storage.Streams==3.2.1

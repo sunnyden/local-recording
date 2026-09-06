@@ -1,0 +1,11 @@
+/build*/
+/.host-tools/
+/managed_components/
+/sdkconfig
+/sdkconfig.old
+/sdkconfig.validation*
+/sdkconfig.hmac-validation
+/sdkconfig.hmac-validation.old
+/sdkconfig.parent-*
+/*.log
+/docs/schematic-review*.png
