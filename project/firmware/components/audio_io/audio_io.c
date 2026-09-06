@@ -13,10 +13,10 @@ static bool rx_on, tx_on;
 static _Atomic uint32_t overruns;
 static DMA_ATTR int16_t receive_slots[PCM_SAMPLES * 2];
 static DMA_ATTR int16_t transmit_slots[PCM_SAMPLES * 2];
-#define VOICE_RING_SAMPLES (PCM_SAMPLES * 6)
+#define VOICE_RING_SAMPLES AUDIO_VOICE_MAX_PENDING_SAMPLES
 #define DMA_BLOCKS 4
-_Static_assert(VOICE_RING_SAMPLES + DMA_BLOCKS * PCM_SAMPLES == AUDIO_VOICE_MAX_PENDING_SAMPLES,
-               "Voice budget must match six software and four DMA periods");
+_Static_assert(VOICE_RING_SAMPLES == PCM_SAMPLES * 10,
+               "Software ring must absorb the full advertised 200 ms credit");
 static portMUX_TYPE voice_lock = portMUX_INITIALIZER_UNLOCKED;
 static bool voice_mode;
 static uint32_t voice_epoch;

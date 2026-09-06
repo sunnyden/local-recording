@@ -162,6 +162,8 @@ The LCD uses 26-character lines, a small original uppercase font, and one
 * **AI:** API-B bearer WSS, `recorder.voice.v1`, exact 24-byte ERV1 header and
   16 kHz PCM. Simultaneous raw microphone capture and playback; no local AEC,
   VAD, resampling, or provider-specific protocol. The proxy owns those choices.
+  The WebSocket upgrade uses a bounded 10 KiB transport buffer so the full
+  bearer header fits; `CONFIG_WS_DYNAMIC_BUFFER` releases it after connection.
 * **Setup:** physical entry, random displayed username and 96-bit random
   password, protocomm Security 2 only, 10-minute lifetime. Standard Wi-Fi
   endpoints plus encrypted `recorder-control`. No password printed to UART.

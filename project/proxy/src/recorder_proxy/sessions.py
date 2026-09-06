@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import suppress
 from dataclasses import dataclass, field
+import logging
 import time
 from uuid import uuid4
 
@@ -10,6 +11,8 @@ from starlette.websockets import WebSocketDisconnect
 from .audio import AudioError, OutputAudio
 from .protocol import Frame, ProtocolError, Sequence, control, parse_control
 from .providers import ProviderError
+
+logger = logging.getLogger("recorder_proxy.session")
 
 
 class SessionError(Exception):
@@ -69,9 +72,10 @@ class VoiceSession:
         self.settings, self.principal = settings, principal
         self.id = str(uuid4())
         self.microphone = TimedQueue(settings.queue_frames, settings.queue_age_seconds)
-        # Fifteen audio frames leave room within the 500 ms age limit for the
-        # producer's wait and 100 ms device progress-report batching.
-        self.outbound = TimedQueue(settings.output_queue_frames, settings.queue_age_seconds)
+        # Provider bursts remain memory bounded while the writer paces the
+        # device. Audio can wait longer than microphone frames without going stale.
+        self.outbound = TimedQueue(settings.output_queue_frames,
+                                   settings.output_queue_age_seconds)
         self.mic_sequence = Sequence()
         self.streams = {}
         self.retired = {}
@@ -304,7 +308,7 @@ class VoiceSession:
         while (sum(s.sent - s.played for s in self.streams.values() if not s.cleared)
                + len(frame.pcm) // 2 > self.settings.max_unplayed_samples):
             self.progress_changed.clear()
-            remaining = self.settings.queue_age_seconds - (time.monotonic() - born)
+            remaining = self.settings.output_queue_age_seconds - (time.monotonic() - born)
             if remaining <= 0:
                 raise SessionError("playback_backlog", True)
             try:
@@ -314,16 +318,19 @@ class VoiceSession:
                 raise SessionError("playback_backlog", True) from None
             if stream.cleared:
                 return
-        # Credit covers DMA plus the software ring, but initially DMA contains
-        # silence. Limit catch-up to 40 ms plus this packet, then pace at 16 kHz.
+        # Fill the board's complete bounded credit before real-time pacing.
+        # This covers its four-period DMA priming latency and network jitter.
         now = time.monotonic()
-        send_at = max(stream.next_send_at, now - 0.04)
-        if send_at > now:
-            await asyncio.sleep(send_at - now)
-        send_at = max(send_at, time.monotonic() - 0.04)
+        if stream.sent < self.settings.startup_prefill_samples:
+            send_at = now
+        else:
+            send_at = max(stream.next_send_at, now - 0.04)
+            if send_at > now:
+                await asyncio.sleep(send_at - now)
+            send_at = max(send_at, time.monotonic() - 0.04)
         if stream.cleared:
             return
-        if time.monotonic() - born > self.settings.queue_age_seconds:
+        if time.monotonic() - born > self.settings.output_queue_age_seconds:
             raise SessionError("queue_expired", True)
         stream.next_send_at = send_at + len(frame.pcm) / 32000
         if stream.sent == 0:
@@ -334,7 +341,7 @@ class VoiceSession:
     async def device_writer(self):
         while True:
             born, value = await self.outbound.get()
-            async with asyncio.timeout(self.settings.queue_age_seconds):
+            async with asyncio.timeout(self.settings.output_queue_age_seconds):
                 if isinstance(value, Frame):
                     await self._send_frame(born, value)
                     continue
@@ -415,4 +422,6 @@ class VoiceSession:
                 except ProviderError:
                     error = error or SessionError("provider_unavailable", True)
                 finally:
+                    logger.info("voice_session_end code=%s",
+                                error.code if error else "normal")
                     await self._finish(error)

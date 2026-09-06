@@ -99,13 +99,12 @@ int main(void)
     assert(audio_voice_epoch(1) == ESP_OK && speaker);
     int16_t pcm[PCM_SAMPLES];
     for (unsigned i = 0; i < PCM_SAMPLES; ++i) pcm[i] = 123;
-    for (unsigned i = 0; i < 6; ++i) assert(audio_voice_enqueue(1, pcm, PCM_SAMPLES) == ESP_OK);
+    for (unsigned i = 0; i < 10; ++i) assert(audio_voice_enqueue(1, pcm, PCM_SAMPLES) == ESP_OK);
     assert(audio_voice_enqueue(1, pcm, 1) == ESP_ERR_NO_MEM);
     assert(audio_voice_played(1) == 0);
     for (unsigned i = 0; i < 4; ++i) dma_complete();
     assert(audio_voice_played(1) == 0); /* Moving into DMA must not return credit. */
-    /* Four slots now hold pending audio: only four more software frames fit. */
-    for (unsigned i = 0; i < 4; ++i) assert(audio_voice_enqueue(1, pcm, PCM_SAMPLES) == ESP_OK);
+    /* Moving frames into DMA does not return combined pending credit. */
     assert(audio_voice_enqueue(1, pcm, 1) == ESP_ERR_NO_MEM);
     dma_complete();
     assert(audio_voice_played(1) == PCM_SAMPLES);
@@ -133,6 +132,6 @@ int main(void)
     assert(gaps_200ms == 0);
     printf("DMA timing model: 100ms credit=%u empty steady-state periods; 200ms credit=%u\n",
            gaps_100ms, gaps_200ms);
-    puts("PASS: actual I2S six-software/four-DMA 3200-sample cap, clear and short tails");
+    puts("PASS: actual I2S ten-frame prefill/combined 3200-sample cap, clear and short tails");
     return 0;
 }
