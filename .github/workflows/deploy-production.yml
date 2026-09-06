@@ -74,12 +74,11 @@ jobs:
             exit 1
           }
 
-      - uses: azure/setup-bicep@v2
-
       - name: Build and lint deployment template
         run: |
-          bicep build --file project/infra/bicep/proxy.bicep --stdout > /dev/null
-          bicep lint --file project/infra/bicep/proxy.bicep
+          az bicep install
+          az bicep build --file project/infra/bicep/proxy.bicep --stdout > /dev/null
+          az bicep lint --file project/infra/bicep/proxy.bicep
 
       - name: Azure login with OIDC
         uses: azure/login@v2
@@ -138,7 +137,7 @@ jobs:
           echo "ref=${REGISTRY_SERVER}/recorder-proxy@${digest}" >> "$GITHUB_OUTPUT"
 
       - name: Scan immutable image
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.image.outputs.ref }}
           format: sarif

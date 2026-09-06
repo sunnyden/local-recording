@@ -36,16 +36,15 @@ jobs:
           PYTHONPATH=project/proxy/src python -m pytest project/proxy/tests project/infra/tests/test_enrollment.py project/tests -q
           PYTHONPATH=project/companion/src python -m pytest project/companion/tests -q
 
-      - uses: azure/setup-bicep@v2
-
       - name: Build and lint Bicep
         run: |
-          bicep build --file project/infra/bicep/base.bicep --stdout > /dev/null
-          bicep lint --file project/infra/bicep/base.bicep
-          bicep build --file project/infra/bicep/proxy.bicep --stdout > /dev/null
-          bicep lint --file project/infra/bicep/proxy.bicep
-          bicep build --file project/infra/bicep/identity-probe.bicep --stdout > /dev/null
-          bicep lint --file project/infra/bicep/identity-probe.bicep
+          az bicep install
+          az bicep build --file project/infra/bicep/base.bicep --stdout > /dev/null
+          az bicep lint --file project/infra/bicep/base.bicep
+          az bicep build --file project/infra/bicep/proxy.bicep --stdout > /dev/null
+          az bicep lint --file project/infra/bicep/proxy.bicep
+          az bicep build --file project/infra/bicep/identity-probe.bicep --stdout > /dev/null
+          az bicep lint --file project/infra/bicep/identity-probe.bicep
 
       - name: Run infrastructure PowerShell tests
         shell: pwsh
@@ -62,7 +61,7 @@ jobs:
           tags: local-recording-proxy:${{ github.sha }}
 
       - name: Scan proxy image
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: local-recording-proxy:${{ github.sha }}
           format: sarif
