@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==80.9.0"]
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,13 +8,13 @@ version = "0.1.0"
 description = "Windows BLE Security 2 provisioning companion for the embedded recorder"
 requires-python = ">=3.11"
 dependencies = [
-    "bleak==1.1.1",
-    "cryptography==46.0.5",
-    "protobuf==6.33.5",
+    "bleak==3.0.2",
+    "cryptography==50.0.1",
+    "protobuf==7.36.1",
 ]
 
 [project.optional-dependencies]
-test = ["pytest==9.0.2"]
+test = ["pytest==9.1.1"]
 
 [project.scripts]
 recorder-setup = "recorder_companion.cli:main"
