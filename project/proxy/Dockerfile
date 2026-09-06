@@ -1,8 +1,13 @@
-FROM python:3.12.12-slim
+FROM python:3.12.14-slim-trixie@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1
 WORKDIR /app
 COPY requirements.lock pyproject.toml ./
-RUN pip install --no-cache-dir -r requirements.lock
+RUN apt-get update \
+    && apt-get upgrade --yes \
+    && rm -rf /var/lib/apt/lists/* \
+    && python -m pip install --no-cache-dir --upgrade pip==26.2.1 \
+    && python -m pip install --no-cache-dir -r requirements.lock \
+    && python -m pip uninstall --yes pip setuptools
 COPY src ./src
 ENV PYTHONPATH=/app/src
 USER 65532:65532
