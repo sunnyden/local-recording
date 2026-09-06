@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#define AUDIO_VOICE_MAX_PENDING_SAMPLES 3200u
+#define AUDIO_VOICE_MAX_PENDING_SAMPLES 8000u
 esp_err_t audio_init(void);
 esp_err_t audio_start(bool capture, bool playback);
 esp_err_t audio_stop(void);

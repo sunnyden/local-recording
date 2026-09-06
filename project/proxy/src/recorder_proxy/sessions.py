@@ -210,7 +210,7 @@ class VoiceSession:
                     raise ProviderError()
                 return stream
         try:
-            async with asyncio.timeout(self.settings.queue_age_seconds):
+            async with asyncio.timeout(self.settings.output_queue_age_seconds):
                 while any(not s.cleared and (not s.end_sent or s.played != s.produced)
                           for s in self.streams.values()):
                     self.progress_changed.clear()

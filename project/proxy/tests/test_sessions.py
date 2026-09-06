@@ -302,7 +302,7 @@ async def test_playback_backlog_is_bounded(settings, principal):
     await provider.messages.put(Event("audio", "r1", "i1", 0, bytes(32000)))
     await asyncio.wait_for(task, 3)
     sent = [Frame.parse(data, 2) for data in socket.history if isinstance(data, bytes)]
-    assert sum(len(f.pcm) // 2 for f in sent) <= settings.max_unplayed_samples == 3200
+    assert sum(len(f.pcm) // 2 for f in sent) <= settings.max_unplayed_samples == 8000
     assert (await socket.until("error"))["code"] in (
         "playback_backlog", "playback_stalled", "timeout", "queue_expired",
     )
@@ -363,7 +363,7 @@ async def test_fast_provider_with_paced_speaker_and_100ms_reports(settings, prin
                     continue
                 frame = Frame.parse(message, 2)
                 assert (session.streams[frame.epoch].sent - session.streams[frame.epoch].played
-                        <= settings.max_unplayed_samples == 3200)
+                        <= settings.max_unplayed_samples == 8000)
                 samples = len(frame.pcm) // 2
                 deadline += samples / 16000
                 await asyncio.sleep(max(0, deadline - time.monotonic()))

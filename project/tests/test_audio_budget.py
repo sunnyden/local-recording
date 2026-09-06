@@ -14,6 +14,7 @@ def simulate(credit_samples, frames=100, delivery_delay_ticks=0):
     sent = played = reported = gaps = peak_software = 0
     next_send = -2
     started = False
+    prefill_frames = min(credit_samples, Settings.startup_prefill_samples) // 320
     for tick in range(frames * 10):
         # A completed DMA period is refilled now but will play four periods later.
         if tick:
@@ -26,12 +27,13 @@ def simulate(credit_samples, frames=100, delivery_delay_ticks=0):
             dma.append(software.popleft() if software else None)
         if tick % 4 == 0:
             reported = played
-        # Proxy pacing permits at most 60 ms initial/catch-up burst.
+        # Proxy sends one bounded prefill, then paces with at most 60 ms catch-up.
         while (sent < frames and (sent - reported + 1) * 320 <= credit_samples
-               and max(next_send, tick - 2) <= tick):
+               and (sent < prefill_frames or max(next_send, tick - 2) <= tick)):
             wire.append(sent)
             sent += 1
-            next_send = max(next_send, tick - 2) + 1
+            if sent >= prefill_frames:
+                next_send = max(next_send, tick - 2) + 1
         if tick >= delivery_delay_ticks:
             software.extend(wire)
             wire.clear()
@@ -45,18 +47,18 @@ def test_insufficient_credit_reproduces_dma_starvation():
     played, gaps, peak = simulate(1600)
     assert played == 100
     assert gaps > 0
-    assert peak <= 6
+    assert peak <= 5
 
 
 def test_production_credit_preserves_continuous_dma_playback():
     played, gaps, peak = simulate(Settings.max_unplayed_samples)
     assert played == 100
     assert gaps == 0, "Credit must cover DMA residence plus the 80 ms played-progress delay."
-    assert peak <= 6, "Paced traffic must fit the six-frame software ring."
+    assert peak <= 25, "Traffic must fit the fixed 25-frame software ring."
 
 
 def test_tcp_coalescing_can_deliver_the_entire_advertised_credit():
-    played, gaps, peak = simulate(3200, delivery_delay_ticks=8)
+    played, gaps, peak = simulate(Settings.max_unplayed_samples, delivery_delay_ticks=8)
     assert played == 100
     assert gaps == 0
-    assert peak == 10, "A delayed TCP segment can release all ten legal outstanding frames together."
+    assert peak <= 25, "A delayed TCP segment must fit the full fixed device ring."

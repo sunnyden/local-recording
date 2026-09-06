@@ -89,8 +89,8 @@ cover:
 * Authoritative `project\protocols\voice-v1-fixtures.json`: every valid and invalid
   wire fixture is consumed directly, valid decoded fields/signed samples are
   checked, and encoder output must match the canonical bytes exactly.
-* The production I2S implementation with simulated DMA callbacks: six software
-  frames plus four DMA periods enforce the 3200-sample budget, moving samples
+* The production I2S implementation with simulated DMA callbacks: a fixed
+  25-frame ring and combined 8000-sample software/DMA budget; moving samples
   into DMA does not return credit, only completed samples free capacity, clear
   zeros pending DMA, short tails count exactly, and stereo/mono slot conversion
   is preserved.
@@ -222,10 +222,9 @@ longer or date-form retry values stop the attempt rather than retry early.
 Session expiry, consent/quota errors, and unsupported reconciliation require a
 new explicit Sync attempt. This is not an unlimited background retry service.
 
-The frozen v1 voice contract uses **3200 samples / 200 ms outstanding**, a
-six-frame software ring (3840 bytes), four 20 ms DMA periods, PCM-rate proxy
-pacing, and startup/catch-up bursts no larger than 60 ms. The whole 200 ms credit
-must not be burst into the initially empty software ring. A separate pending
+The v1 voice contract uses a hard **8000 samples / 500 ms outstanding** limit,
+a fixed 25-frame internal ring, four 20 ms DMA periods, and a 300 ms initial
+prefill followed by PCM-rate proxy pacing. A separate pending
 counter includes **both software and DMA**, so moving a frame into DMA does not
 return playback credit. Internal memory is required because the ISR accesses
 this ring; no allocation occurs per packet. Normal latency still needs hardware

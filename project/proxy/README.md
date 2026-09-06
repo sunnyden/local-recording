@@ -119,22 +119,18 @@ configuration-acceptance test; there is no silent format/model fallback.
 * Device messages: at most 4096 UTF-8 control bytes or 664 binary bytes, strict
   header/sequence/sample-position checks. WebSocket transport queues: 4.
 * Microphone queue: 25 frames (16 KB PCM), maximum residence/wait 500 ms.
-  Outbound queue: 15 records (at most 9600 PCM bytes), maximum residence/wait
-  500 ms. The 300 ms audio capacity leaves age-budget headroom for a producer
-  waiting for queue space and 100 ms batched device progress reports.
+  Outbound queue: 35 records (at most 22,400 PCM bytes), maximum residence/wait
+  3 seconds. It remains memory bounded while tolerating provider bursts and
+  board playback pacing.
   Service receive: 128 KiB message, 4 WebSocket frames, 64 KiB decoded
   PCM per event; one decoded/resampled chunk is held outside these queues.
   These bounds deliberately stop overloaded sessions instead of accumulating
   arbitrary delayed audio. The 32 most recent interrupted response IDs are
   retained to discard late deltas; older unexpected IDs fail closed.
-* No more than 3200 samples (200 ms, ten nominal frames) are sent but
-  unreported as played. Credit covers both the continuous four-period DMA
-  residence and the firmware's 80 ms played-progress batching. A 100 ms credit
-  limit starves this DMA pipeline even though it appears safe with an immediate
-  speaker mock; the shared DMA-budget regression preserves this constraint.
-  Sending is paced at 16 kHz, with at most 40 ms catch-up plus the current
-  packet (60 ms maximum nominal burst). This avoids filling the six-frame
-  software ring with a 200 ms burst while the four DMA periods contain silence.
+* No more than 8000 samples (500 ms, 25 nominal frames) are sent but
+  unreported as played. The proxy initially prefills 300 ms, then paces at
+  16 kHz with no more than 60 ms catch-up. This covers Wi-Fi jitter, the
+  four-period DMA residence, and the firmware's 80 ms progress batching.
   Device progress must report **actual speaker-consumed** samples every four
   microphone frames (nominally 80 ms), plus final drain. The DMA-budget contract
   depends on this cadence. End-of-stream is not proof of playback.
@@ -168,16 +164,15 @@ injected into the direct diagnostic only; production authentication was unchange
 
 A fuller live `VoiceSession` diagnostic streamed paced, locally synthesized
 16 kHz microphone PCM while consuming returned audio at real-time speed.
-After the output-queue correction, a ten-frame simulated speaker queue with
+After the initial output-queue correction, a ten-frame simulated speaker with
 100 ms played-progress batches completed 40,800 output samples without errors.
-That cloud run preceded sender-pacing tightening. The final 200 ms credit and
-nominal 60 ms burst limit pass local paced-speaker/session regressions and the
-shared four-period DMA simulator with zero interior gaps and a three-frame
-peak software queue. The rejected 100 ms credit configuration produces 57 gaps
-(1140 ms interior silence) for the same two-second PCM stream.
+That cloud run preceded physical-board tuning. The final 500 ms hard credit,
+300 ms prefill, and nominal 60 ms catch-up pass paced-speaker/session regressions
+and the shared four-period DMA simulator without interior gaps.
 The original 33-record output queue reproduced a normal-playback
 `playback_backlog` failure; a regression now exercises an immediately produced
-two-second response against a paced speaker, without enlarging queue-age limits.
+two-second response against a paced speaker. The output age bound was later
+raised to three seconds after a real multi-turn `playback_backlog` failure.
 The synthetic principal and CLI credentials were diagnostic-only; no public
 server, consumer account enrollment, or production authentication bypass was used.
 

@@ -65,7 +65,7 @@ static void dma_complete(void)
     assert(transmit.callbacks.on_sent);
     transmit.callbacks.on_sent(&transmit, &event, NULL);
 }
-static unsigned simulate_credit(unsigned credit, uint32_t stream)
+static unsigned simulate_credit(unsigned credit, unsigned prefill, uint32_t stream)
 {
     assert(audio_voice_start() == ESP_OK);
     assert(audio_voice_epoch(stream) == ESP_OK);
@@ -74,13 +74,15 @@ static unsigned simulate_credit(unsigned credit, uint32_t stream)
     for (unsigned i = 0; i < PCM_SAMPLES; ++i) pcm[i] = 123;
     uint64_t sent = 0, reported = 0;
     unsigned empty_periods = 0;
-    /* One frame per 20ms, up to 60ms initial lead; device reports every 80ms.
+    /* One frame per 20ms after bounded prefill; device reports every 80ms.
        Exercise the real four-slot on_sent callback, not an instant speaker. */
     for (unsigned tick = 0; tick < 100; ++tick) {
         if (tick % 4 == 0) reported = audio_voice_played(stream);
         uint64_t pacing_limit = (uint64_t)(tick + 3) * PCM_SAMPLES;
         unsigned burst_frames = 0;
-        while (sent < pacing_limit && sent - reported + PCM_SAMPLES <= credit && burst_frames < 3) {
+        uint64_t send_limit = tick == 0 ? prefill : pacing_limit;
+        while (sent < send_limit && sent - reported + PCM_SAMPLES <= credit &&
+               (tick == 0 || burst_frames < 3)) {
             assert(audio_voice_enqueue(stream, pcm, PCM_SAMPLES) == ESP_OK);
             sent += PCM_SAMPLES;
             ++burst_frames;
@@ -99,7 +101,7 @@ int main(void)
     assert(audio_voice_epoch(1) == ESP_OK && speaker);
     int16_t pcm[PCM_SAMPLES];
     for (unsigned i = 0; i < PCM_SAMPLES; ++i) pcm[i] = 123;
-    for (unsigned i = 0; i < 10; ++i) assert(audio_voice_enqueue(1, pcm, PCM_SAMPLES) == ESP_OK);
+    for (unsigned i = 0; i < 25; ++i) assert(audio_voice_enqueue(1, pcm, PCM_SAMPLES) == ESP_OK);
     assert(audio_voice_enqueue(1, pcm, 1) == ESP_ERR_NO_MEM);
     assert(audio_voice_played(1) == 0);
     for (unsigned i = 0; i < 4; ++i) dma_complete();
@@ -126,12 +128,12 @@ int main(void)
     assert(audio_start(false, true) == ESP_OK && speaker);
     assert(audio_write(pcm, PCM_SAMPLES) == ESP_OK);
     assert(audio_stop() == ESP_OK);
-    unsigned gaps_100ms = simulate_credit(1600, 3);
-    unsigned gaps_200ms = simulate_credit(3200, 4);
+    unsigned gaps_100ms = simulate_credit(1600, 1600, 3);
+    unsigned gaps_500ms = simulate_credit(8000, 4800, 4);
     assert(gaps_100ms > 0);
-    assert(gaps_200ms == 0);
-    printf("DMA timing model: 100ms credit=%u empty steady-state periods; 200ms credit=%u\n",
-           gaps_100ms, gaps_200ms);
-    puts("PASS: actual I2S ten-frame prefill/combined 3200-sample cap, clear and short tails");
+    assert(gaps_500ms == 0);
+    printf("DMA timing model: 100ms credit=%u empty steady-state periods; 500ms credit=%u\n",
+           gaps_100ms, gaps_500ms);
+    puts("PASS: actual I2S 300ms prefill/combined 500ms cap, clear and short tails");
     return 0;
 }
