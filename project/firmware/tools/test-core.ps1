@@ -48,7 +48,7 @@ try {
     if ($LASTEXITCODE) { throw "Host network compile failed ($LASTEXITCODE)" }
     & .\network-test.exe
     if ($LASTEXITCODE) { throw "Host network tests failed ($LASTEXITCODE)" }
-    & $Compiler cc -std=c11 -Wall -Wextra -Werror -D_CRT_SECURE_NO_WARNINGS -D_GNU_SOURCE `
+    & $Compiler cc -std=c11 -Wall -Wextra -Werror -D_CRT_SECURE_NO_WARNINGS -D_GNU_SOURCE -DRECORDER_HOST_TEST `
         -I "$root\tests\host" -I "$root\components\voice_client\include" `
         -I "$root\components\audio_io\include" -I "$root\components\identity\include" `
         -I "$root\components\recorder_core\include" -I $cjson `

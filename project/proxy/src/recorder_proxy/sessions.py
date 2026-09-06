@@ -422,6 +422,6 @@ class VoiceSession:
                 except ProviderError:
                     error = error or SessionError("provider_unavailable", True)
                 finally:
-                    logger.info("voice_session_end code=%s",
-                                error.code if error else "normal")
+                    logger.warning("voice_session_end code=%s",
+                                   error.code if error else "normal")
                     await self._finish(error)

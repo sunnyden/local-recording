@@ -22,16 +22,20 @@ static _Atomic uint32_t current_epoch;
 typedef struct {
     esp_websocket_client_handle_t ws;
     QueueHandle_t controls;
+    QueueHandle_t microphone;
     uint8_t message[4097];
     size_t used;
     int frame_offset;
     uint8_t opcode;
     bool assembling, ended, audio_started;
+    _Atomic bool capture_done;
     voice_frame_t expected;
     uint32_t last_epoch;
     uint32_t cleared_epoch;
     int64_t deadline;
 } voice_session_t;
+
+#define MIC_QUEUE_FRAMES 25
 
 voice_status_t voice_client_status(void)
 {
@@ -74,6 +78,29 @@ static void send_pending(voice_session_t *s)
     while (xQueueReceive(s->controls, text, 0) == pdTRUE)
         if (!send_text(s, text)) break;
 }
+static bool capture_once(voice_session_t *s)
+{
+    int16_t microphone[PCM_SAMPLES];
+    esp_err_t err = audio_read(microphone, PCM_SAMPLES);
+    if (err != ESP_OK || audio_overruns()) {
+        fail(err == ESP_OK ? ESP_FAIL : err);
+        return false;
+    }
+    if (xQueueSend(s->microphone, microphone, 0) != pdTRUE) {
+        fail(ESP_ERR_NO_MEM);
+        return false;
+    }
+    return true;
+}
+#ifndef RECORDER_HOST_TEST
+static void capture(void *arg)
+{
+    voice_session_t *s = arg;
+    while (!atomic_load(&stopping) && capture_once(s)) {}
+    atomic_store(&s->capture_done, true);
+    vTaskDelete(NULL);
+}
+#endif
 static const char *text(cJSON *json, const char *name)
 {
     cJSON *value = cJSON_GetObjectItemCaseSensitive(json, name);
@@ -207,16 +234,19 @@ static void conversation(void *unused)
 {
     (void)unused;
     voice_session_t *s = calloc(1, sizeof(*s));
+    if (s) atomic_store(&s->capture_done, true);
     if (s) s->controls = xQueueCreate(8, 160);
+    if (s) s->microphone = xQueueCreate(MIC_QUEUE_FRAMES, PCM_BYTES);
     char *token = malloc(8193), *headers = malloc(8256);
-    esp_err_t err = s && s->controls && token && headers ? identity_access(AUTH_PROXY, false, token, 8193) : ESP_ERR_NO_MEM;
+    esp_err_t err = s && s->controls && s->microphone && token && headers ?
+                    identity_access(AUTH_PROXY, false, token, 8193) : ESP_ERR_NO_MEM;
     if (err == ESP_OK) {
         snprintf(headers, 8256, "Authorization: Bearer %s\r\n", token);
         esp_websocket_client_config_t cfg = {.uri = CONFIG_RECORDER_PROXY_URL,
             .subprotocol = "recorder.voice.v1", .headers = headers,
             .crt_bundle_attach = esp_crt_bundle_attach, .disable_auto_reconnect = true,
             .buffer_size = 2048, .task_stack = 8192, .task_prio = 7,
-            .network_timeout_ms = 10000, .ping_interval_sec = 10, .pingpong_timeout_sec = 20};
+            .network_timeout_ms = 30000, .ping_interval_sec = 10, .pingpong_timeout_sec = 20};
         s->ws = esp_websocket_client_init(&cfg);
         if (!s->ws) err = ESP_ERR_NO_MEM;
     }
@@ -230,6 +260,15 @@ static void conversation(void *unused)
         if (esp_timer_get_time() > ready_deadline) { fail(ESP_ERR_TIMEOUT); break; }
         vTaskDelay(pdMS_TO_TICKS(20));
     }
+#ifndef RECORDER_HOST_TEST
+    if (!atomic_load(&stopping)) {
+        atomic_store(&s->capture_done, false);
+        if (xTaskCreate(capture, "voice_capture", 4096, s, 10, NULL) != pdPASS) {
+            atomic_store(&s->capture_done, true);
+            fail(ESP_ERR_NO_MEM);
+        }
+    }
+#endif
     uint8_t packet[VOICE_MAX_PACKET];
     int16_t microphone[PCM_SAMPLES];
     voice_frame_t mic = {.kind = 1, .pcm = (const uint8_t *)microphone, .samples = PCM_SAMPLES};
@@ -237,10 +276,13 @@ static void conversation(void *unused)
     while (!atomic_load(&stopping)) {
         send_pending(s);
         if (esp_timer_get_time() >= s->deadline) break;
-        err = audio_read(microphone, PCM_SAMPLES);
-        if (err != ESP_OK || audio_overruns()) { fail(err == ESP_OK ? ESP_FAIL : err); break; }
+#ifdef RECORDER_HOST_TEST
+        if (!capture_once(s)) break;
+#endif
+        if (xQueueReceive(s->microphone, microphone, pdMS_TO_TICKS(100)) != pdTRUE)
+            continue;
         voice_encode(packet, sizeof(packet), &mic);
-        int n = esp_websocket_client_send_bin(s->ws, (const char *)packet, sizeof(packet), pdMS_TO_TICKS(200));
+        int n = esp_websocket_client_send_bin(s->ws, (const char *)packet, sizeof(packet), pdMS_TO_TICKS(500));
         if (n != sizeof(packet)) { fail(ESP_ERR_TIMEOUT); break; }
         ++mic.sequence; mic.sample += PCM_SAMPLES;
         if (++progress_tick == 4) {
@@ -253,6 +295,10 @@ static void conversation(void *unused)
     }
     atomic_store(&stopping, true);
     atomic_store(&state, STOPPING);
+#ifndef RECORDER_HOST_TEST
+    for (unsigned i = 0; !atomic_load(&s->capture_done) && i < 50; ++i)
+        vTaskDelay(pdMS_TO_TICKS(20));
+#endif
     if (s && s->audio_started) board_speaker(false);
     if (s && s->ws) {
         if (esp_websocket_client_is_connected(s->ws))
@@ -263,6 +309,7 @@ static void conversation(void *unused)
     if (s && s->audio_started) audio_stop();
     if (headers) { secret_zero(headers, 8256); free(headers); }
     if (s && s->controls) vQueueDelete(s->controls);
+    if (s && s->microphone) vQueueDelete(s->microphone);
     free(s);
     atomic_store(&active, false);
     vTaskDelete(NULL);
