@@ -8,7 +8,7 @@ if (-not (Test-Path -LiteralPath $python)) {
 }
 Write-Host 'Select SETUP on the recorder. From the initial main menu: KEY3, then KEY0.'
 Write-Host 'Enter the displayed setup username/password only in the hidden terminal prompts.'
-Write-Host 'Then use: wifi -> graph -> status -> finish.'
+Write-Host 'Then use wifi, followed by graph for OneDrive and/or proxy for AI, then status and finish.'
 Write-Host 'Your Microsoft password belongs only on the Microsoft browser page, never in this terminal or chat.'
 if (-not $SkipReadyPrompt) {
     $null = Read-Host 'Press Enter once the recorder shows its setup username/password'

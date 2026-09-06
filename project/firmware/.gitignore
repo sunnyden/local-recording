@@ -7,5 +7,6 @@
 /sdkconfig.hmac-validation
 /sdkconfig.hmac-validation.old
 /sdkconfig.parent-*
+/sdkconfig.ai-poc
 /*.log
 /docs/schematic-review*.png

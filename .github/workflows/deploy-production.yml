@@ -5,7 +5,10 @@ on:
     branches: [main, master]
     paths:
       - ".github/workflows/deploy-production.yml"
-      - "project/proxy/**"
+      - "project/proxy/Dockerfile"
+      - "project/proxy/pyproject.toml"
+      - "project/proxy/requirements.lock"
+      - "project/proxy/src/**"
       - "project/infra/bicep/proxy.bicep"
   workflow_dispatch:
     inputs:

@@ -85,9 +85,26 @@ Linux container startup and the exact Voice Live configuration with production
 managed identity/RBAC. The job has no public ingress or schedule, no retries,
 and a 90-second execution limit. It sends no user audio.
 
-The public proxy Container App is **not deployed yet**: explicit consumer-user
-enrollment is still required. Ingress, consumer authorization and cold-start/
-scale-to-zero behavior of that public app remain separate acceptance gates.
+The public proxy Container App was deployed after explicit consumer enrollment.
+Physical-device authorization and conversation/acoustic behavior remain
+separate acceptance gates.
+
+### GitHub production deployment
+
+The consumer API-B user was explicitly enrolled and validated. GitHub Actions
+now deploys the proxy at:
+
+```text
+wss://recorder-proxy.grayplant-a3ab794a.eastus2.azurecontainerapps.io/v1/voice
+```
+
+Successful run:
+`https://github.com/sunnyden/local-recording/actions/runs/34045328790`
+
+That run authenticated with immutable-ID GitHub OIDC, built/pushed an immutable
+private ACR image, passed the critical/high vulnerability gate, deployed the
+0-1 replica Container App, and passed `/readyz`. The image digest was
+`sha256:25c13a439c10f6b5a0a84cb5ec7c7d87f8698e12c665a4b40253bf2b95959525`.
 
 ## Not automatically enrolled
 

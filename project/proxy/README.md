@@ -192,8 +192,8 @@ and no reported error. A manual private Container Apps job also ran the built
 image using its production managed identity and accepted the exact Voice Live
 configuration. See `..\docs\cloud-setup.md` for the resource/execution record.
 
-**Consumer enrollment/authentication, BYOM availability, public ingress/
-cold-start behavior, and physical-board acoustics/AEC/DMA interruption still
-require acceptance.** The public proxy is not yet deployed; the private job is
-not a substitute for those tests. Unit tests cover observed service-default
-configuration and event shapes without connecting to Azure.
+Consumer enrollment and GitHub OIDC deployment have completed, and public
+ingress reached `/readyz` from zero-capable hosting. **Authenticated physical
+device conversation, cold-start WebSocket behavior, board acoustics/AEC/DMA
+interruption, and BYOM availability still require acceptance.** The native
+managed model is the deployed path; no BYOM fallback is configured.
