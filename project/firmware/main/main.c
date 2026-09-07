@@ -77,7 +77,7 @@ void app_main(void)
             }
         } else if (sync.active) {
             if (key == KEY_BACK) cloud_sync_cancel();
-            snprintf(status, sizeof(status), "SYNC %u FILES %lu%%", sync.files_done,
+            snprintf(status, sizeof(status), "%s %u %lu%%", cloud_sync_phase_name(sync.phase), sync.files_done,
                 (unsigned long)(sync.total_bytes ? (uint64_t)sync.confirmed_bytes * 100 / sync.total_bytes : 0));
             static char previous_status[64];
             if (strcmp(previous_status, status)) {
@@ -133,7 +133,10 @@ void app_main(void)
             redraw = false;
         }
         previous = state.mode;
-        if (previous_sync && !sync.active) show(10, sync.error == ESP_OK ? "SYNC DONE LOCAL RETAINED" : esp_err_to_name(sync.error), false);
+        if (previous_sync && !sync.active) {
+            show(10, cloud_sync_summary(sync), false);
+            show(11, sync.processing_pending ? cloud_sync_result_name(sync.processing_result) : "", false);
+        }
         previous_sync = sync.active;
         if (previous_voice && !voice.active) show(10, voice.error == ESP_OK ? "VOICE STOPPED" : esp_err_to_name(voice.error), false);
         previous_voice = voice.active;

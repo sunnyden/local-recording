@@ -1,5 +1,38 @@
 # Firmware validation record
 
+## Timestamp/processing extension validation
+
+The owner confirmed the existing record/play/Sync/AI behavior before this
+extension. That confirmation supersedes the historical baseline's "not run"
+entries below, but does not validate the new processing path on hardware.
+
+* Existing `tools\test-core.ps1` regression suite passes, including unchanged
+  voice/audio/identity/upload tests and new HTTPS deadline, cancellation,
+  bounded-request/response, slow-drip receive abort, and origin-validation cases.
+* `tools\test-intelligence.ps1` passes actual storage/name/checkpoint/outbox and
+  actual cloud Sync/processing/UI host tests. It covers timestamp/offset/offline
+  names, collision avoidance, old recovery journals, torn outbox updates,
+  all upload-success branches, multiple durable jobs, replay without WAV files,
+  status-first reconciliation, consent, cancellation, Retry-After and long-WAV
+  skips. Network, scheduler and SHA-1-provider boundaries are synthetic.
+* Final isolated ESP-IDF 6.1 builds pass: safe image `0x16a720` bytes
+  (1,484,576) and owner-approved PoC profile `0x175640` bytes (1,529,408).
+  Both fit the existing 3 MiB application capacity. Final incremental checks
+  used `ninja -j1`. No source compiler warnings were reported.
+* Source changes leave audio/voice buffers, codec, partition definitions, and
+  existing generated sdkconfigs untouched. No flash/reset/erase/eFuse or
+  credential reads were performed.
+
+Build outputs are in `build-intelligence-safe` and `build-intelligence-poc`;
+their generated partition tables are **not** the device's installed layout.
+The parent must preserve installed 24 KiB NVS and factory app at `0x10000`
+before any later app-only flash. See
+[implementation and acceptance checklist](recording-processing.md).
+Real SD power-fail behavior, cold-start TLS/HTTP timing, task stack margins,
+live device-to-backend sidecars, and acoustic regression remain hardware gates.
+
+## Historical baseline validation
+
 Implementation validation on 2026-09-06, Windows, ESP-IDF tag `v6.1`.
 
 Coordinator-reported cloud prerequisites on 2026-09-06: the actual consumer

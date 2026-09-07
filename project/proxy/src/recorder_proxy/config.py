@@ -51,6 +51,11 @@ class Settings:
     clear_timeout_seconds: float = 2
     playback_stall_seconds: float = 2
     playback_transition_seconds: float = 15
+    recording_processing_enabled: bool = False
+    onedrive_tools_enabled: bool = False
+    onedrive_allowed_root: str = "local-recording"
+    speech_endpoint: str = ""
+    processing_deadline_seconds: float = 180
 
     @classmethod
     def from_env(cls, env=None):
@@ -80,6 +85,31 @@ class Settings:
         cap = int(env.get("MAX_SESSION_SECONDS", "900"))
         if not 1 <= cap <= 900:
             raise ValueError("MAX_SESSION_SECONDS must be in 1..900")
+        flags = {}
+        for name in ("RECORDING_PROCESSING_ENABLED", "ONEDRIVE_TOOLS_ENABLED"):
+            value = env.get(name, "false").lower()
+            if value not in ("true", "false"):
+                raise ValueError(f"{name} must be true or false")
+            flags[name] = value == "true"
+        legacy_root = env.get("ONEDRIVE_ALLOWED_ROOT")
+        root = env.get("GRAPH_ROOT_PATH", legacy_root if legacy_root is not None else "local-recording")
+        if legacy_root is not None and legacy_root != root:
+            raise ValueError("GRAPH_ROOT_PATH and ONEDRIVE_ALLOWED_ROOT must not conflict")
+        if (len(root) > 512 or not 1 <= len(root.split("/")) <= 8
+                or any(not part or part in (".", "..") or
+                       any(ord(c) < 32 or c in '\\:*?"<>|#%' for c in part)
+                       for part in root.split("/"))):
+            raise ValueError("GRAPH_ROOT_PATH must be a relative folder path")
+        speech_endpoint = env.get("SPEECH_ENDPOINT", "").rstrip("/")
+        if flags["RECORDING_PROCESSING_ENABLED"] or speech_endpoint:
+            speech_url = urlsplit(speech_endpoint)
+            if (speech_url.scheme != "https" or not speech_url.hostname
+                    or not speech_url.hostname.endswith((".cognitiveservices.azure.com",
+                                                        ".services.ai.azure.com"))
+                    or speech_url.username or speech_url.password
+                    or speech_url.port not in (None, 443) or speech_url.path
+                    or speech_url.query or speech_url.fragment):
+                raise ValueError("SPEECH_ENDPOINT must be a trusted Azure resource HTTPS origin")
         return cls(
             api_audience=guid(required(env, "API_B_CLIENT_ID"), "API_B_CLIENT_ID"),
             client_id=guid(required(env, "PUBLIC_CLIENT_A_ID"), "PUBLIC_CLIENT_A_ID"),
@@ -87,4 +117,7 @@ class Settings:
             managed_identity_client_id=guid(required(env, "AZURE_CLIENT_ID"), "AZURE_CLIENT_ID"),
             endpoint=f"https://{url.hostname}",
             model=model, profile=profile, max_session_seconds=cap,
+            recording_processing_enabled=flags["RECORDING_PROCESSING_ENABLED"],
+            onedrive_tools_enabled=flags["ONEDRIVE_TOOLS_ENABLED"],
+            onedrive_allowed_root=root, speech_endpoint=speech_endpoint,
         )

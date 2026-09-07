@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 import anyio
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
+from starlette.requests import ClientDisconnect
 from starlette.routing import Route, WebSocketRoute
 
 from .auth import AuthError, AuthUnavailable, TokenValidator
@@ -11,15 +12,37 @@ from .config import Settings
 from .protocol import SUBPROTOCOL
 from .providers import VoiceLive
 from .sessions import VoiceSession
+from .graph import GraphClient
+from .intelligence_errors import IntelligenceError, http_client, unavailable
+from .obo import GraphTokens, UserContext
+from .processing import RecordingProcessor
+from .recording_contract import RecordingRequest
+from .speech import FastTranscription
+from .tools import ReadTools
+from .voice_tools import strict_arguments
 
 
-def create_app(settings=None, *, validator=None, provider_factory=None):
+def create_app(settings=None, *, validator=None, provider_factory=None,
+               graph_factory=None, speech=None):
     """Dependency injection is Python-only; deployment has no fake/auth-bypass switch."""
     settings = settings or Settings.from_env()
     validator = validator or TokenValidator(settings)
     provider_factory = provider_factory or VoiceLive
     active = set()
+    processing_requests = set()
     accepting = False
+    tokens, graph_http = None, None
+    if (settings.recording_processing_enabled or settings.onedrive_tools_enabled) and graph_factory is None:
+        tokens, graph_http = GraphTokens(settings), http_client()
+
+        def graph_factory(user):
+            return GraphClient(settings, tokens, user, http=graph_http)
+
+    if settings.recording_processing_enabled:
+        speech = speech or FastTranscription(settings)
+        processor = RecordingProcessor(settings, graph_factory, speech)
+    else:
+        processor = None
 
     @asynccontextmanager
     async def lifespan(app):
@@ -33,8 +56,16 @@ def create_app(settings=None, *, validator=None, provider_factory=None):
             with anyio.CancelScope(shield=True):
                 for task in list(active):
                     task.cancel()
-                await asyncio.gather(*active, return_exceptions=True)
+                for task in list(processing_requests):
+                    task.cancel()
+                await asyncio.gather(*active, *processing_requests, return_exceptions=True)
                 await validator.close()
+                if speech:
+                    await speech.close()
+                if tokens:
+                    await tokens.close()
+                if graph_http:
+                    await graph_http.aclose()
 
     async def health(request):
         return JSONResponse({"status": "ok"})
@@ -74,13 +105,86 @@ def create_app(settings=None, *, validator=None, provider_factory=None):
         try:
             await socket.accept(subprotocol=SUBPROTOCOL)
             provider = provider_factory(settings)
-            session = VoiceSession(socket, provider, settings, principal)
+            tools = None
+            if settings.onedrive_tools_enabled:
+                tools = ReadTools(graph_factory, UserContext(principal, authorization[0][7:]))
+            session = VoiceSession(socket, provider, settings, principal, tools=tools)
             await session.run()
         finally:
             active.discard(task)
 
+    async def process(request):
+        if len(processing_requests) >= 8:
+            return intelligence_error(IntelligenceError("busy", 429, True))
+        task = asyncio.current_task()
+        processing_requests.add(task)
+        try:
+            if not accepting or not processor:
+                raise unavailable()
+            if request.scope.get("query_string"):
+                raise IntelligenceError("invalid_request", 400)
+            authorization = request.headers.getlist("authorization")
+            if len(authorization) != 1:
+                raise IntelligenceError("authentication_required", 401)
+            try:
+                principal = await validator.validate(authorization[0])
+            except AuthError:
+                raise IntelligenceError("authentication_required", 401) from None
+            except AuthUnavailable:
+                raise unavailable() from None
+            if request.headers.get("content-type", "").split(";")[0].strip().lower() != "application/json":
+                raise IntelligenceError("invalid_request", 400)
+            body = bytearray()
+            async with asyncio.timeout(10):
+                async for chunk in request.stream():
+                    if len(body) + len(chunk) > 4096:
+                        raise IntelligenceError("invalid_request", 400)
+                    body.extend(chunk)
+            try:
+                value = strict_arguments(body.decode("utf-8"))
+            except (ValueError, RecursionError):
+                raise IntelligenceError("invalid_request", 400) from None
+            recording = RecordingRequest.parse(value)
+            user = UserContext(principal, authorization[0][7:])
+            result = await until_disconnect(
+                request, processor.handle(user, recording, status=request.url.path.endswith("/status")))
+            return JSONResponse(result)
+        except (TimeoutError, ClientDisconnect):
+            return intelligence_error(unavailable())
+        except IntelligenceError as exc:
+            return intelligence_error(exc)
+        finally:
+            processing_requests.discard(task)
+
     return Starlette(routes=[
         Route("/healthz", health),
         Route("/readyz", readiness),
+        Route("/v1/recordings/process", process, methods=["POST"]),
+        Route("/v1/recordings/status", process, methods=["POST"]),
         WebSocketRoute("/v1/voice", voice),
     ], lifespan=lifespan)
+
+
+def intelligence_error(error):
+    return JSONResponse({"v": 1, "error": {"code": error.code, "retryable": error.retryable}},
+                        status_code=error.status,
+                        headers={"Retry-After": "5"} if error.status in (429, 503, 504) else {})
+
+
+async def until_disconnect(request, operation):
+    async def disconnected():
+        while True:
+            if (await request.receive())["type"] == "http.disconnect":
+                raise ClientDisconnect()
+
+    work, watch = asyncio.create_task(operation), asyncio.create_task(disconnected())
+    try:
+        done, _ = await asyncio.wait((work, watch), return_when=asyncio.FIRST_COMPLETED)
+        if work in done:
+            return work.result()
+        watch.result()
+    finally:
+        with anyio.CancelScope(shield=True):
+            work.cancel()
+            watch.cancel()
+            await asyncio.gather(work, watch, return_exceptions=True)

@@ -12,6 +12,7 @@ from websockets.asyncio.client import connect
 from websockets.exceptions import WebSocketException
 
 from .config import API_VERSION
+from .tools import TOOL_PROMPT, tool_definitions
 
 
 class ProviderError(Exception):
@@ -25,6 +26,10 @@ class Event:
     item_id: str = ""
     content_index: int = 0
     pcm: bytes = b""
+    call_id: str = ""
+    name: str = ""
+    arguments: str = ""
+    event_id: str = ""
 
 
 class VoiceProvider(Protocol):
@@ -38,8 +43,8 @@ class VoiceProvider(Protocol):
     async def close(self): ...
 
 
-def session_configuration():
-    return {
+def session_configuration(tools_enabled=False):
+    result = {
         "type": "session.update",
         "session": {
             "modalities": ["text", "audio"],
@@ -53,12 +58,18 @@ def session_configuration():
             "tool_choice": "none",
         },
     }
+    if tools_enabled:
+        result["session"].update(tools=tool_definitions(), tool_choice="auto",
+                                 instructions=TOOL_PROMPT)
+    return result
 
 
 def verify_configuration(message, settings):
     session = message.get("session", {})
-    requested = session_configuration()["session"]
+    requested = session_configuration(settings.onedrive_tools_enabled)["session"]
     if not isinstance(session, dict):
+        raise ProviderError()
+    if settings.onedrive_tools_enabled and session.get("instructions") != TOOL_PROMPT:
         raise ProviderError()
     for key in ("input_audio_format", "input_audio_sampling_rate", "output_audio_format",
                 "tools", "tool_choice"):
@@ -92,16 +103,20 @@ def _identifier(data, key):
     return value
 
 
-def map_event(data):
+def map_event(data, tools_enabled=False):
     kind = data.get("type")
     if not isinstance(kind, str):
         raise ProviderError()
     if kind == "error":
         raise ProviderError()
     if kind in ("response.function_call_arguments.delta", "response.function_call_arguments.done"):
+        if tools_enabled:
+            return tool_event(data)
         raise ProviderError()
     if kind in ("response.output_item.added", "response.output_item.done"):
         item = data.get("item", {})
+        if tools_enabled and isinstance(item, dict) and item.get("type") == "function_call":
+            return tool_event(data)
         if not isinstance(item, dict) or item.get("type") == "function_call":
             raise ProviderError()
     if kind == "input_audio_buffer.speech_started":
@@ -135,7 +150,7 @@ def map_event(data):
         if not isinstance(output, list) or len(output) > 128:
             raise ProviderError()
         for item in output:
-            if not isinstance(item, dict) or item.get("type") == "function_call":
+            if not isinstance(item, dict) or (item.get("type") == "function_call" and not tools_enabled):
                 raise ProviderError()
         return Event("response_done", _identifier(response, "id"))
     if kind == "response.created":
@@ -156,6 +171,30 @@ def map_event(data):
     }:
         return None
     raise ProviderError()
+
+
+def tool_event(data):
+    kind = data["type"]
+    item = data.get("item", {})
+    if not isinstance(item, dict):
+        raise ProviderError()
+    call_id = item.get("call_id", data.get("call_id", ""))
+    item_id = item.get("id", data.get("item_id", ""))
+    name = item.get("name", data.get("name", ""))
+    arguments = data.get("delta") if kind.endswith(".delta") else item.get(
+        "arguments", data.get("arguments", ""))
+    event_id = data.get("event_id", "")
+    if (not isinstance(call_id, str) or len(call_id) > 256
+            or not isinstance(item_id, str) or len(item_id) > 256
+            or not (call_id or item_id)
+            or not isinstance(name, str) or len(name) > 128
+            or not isinstance(arguments, str) or len(arguments.encode()) > 8192
+            or not isinstance(event_id, str) or len(event_id) > 256):
+        raise ProviderError()
+    event_type = ("tool_delta" if kind.endswith(".delta") else
+                  "tool_added" if kind.endswith(".added") else "tool_done")
+    return Event(event_type, _identifier(data, "response_id"), item_id,
+                 call_id=call_id, name=name, arguments=arguments, event_id=event_id)
 
 
 class VoiceLive:
@@ -205,7 +244,7 @@ class VoiceLive:
                 del token
                 if (await self._receive()).get("type") != "session.created":
                     raise ProviderError()
-                await self._send(session_configuration())
+                await self._send(session_configuration(self.settings.onedrive_tools_enabled))
                 message = await self._receive()
                 if message.get("type") != "session.updated":
                     raise ProviderError()
@@ -221,7 +260,18 @@ class VoiceLive:
 
     async def events(self):
         while True:
-            event = map_event(await self._receive())
+            data = await self._receive()
+            if self.settings.onedrive_tools_enabled and data.get("type") == "response.done":
+                response = data.get("response")
+                if (not isinstance(response, dict) or not isinstance(response.get("output", []), list)
+                        or len(response.get("output", [])) > 128):
+                    raise ProviderError()
+                if response.get("status") == "completed":
+                    for item in response.get("output", []):
+                        if isinstance(item, dict) and item.get("type") == "function_call":
+                            yield tool_event({"type": "response.output_item.done",
+                                              "response_id": response.get("id"), "item": item})
+            event = map_event(data, self.settings.onedrive_tools_enabled)
             if event:
                 yield event
 
@@ -233,6 +283,11 @@ class VoiceLive:
 
     async def respond(self):
         await self._send({"type": "response.create"})
+
+    async def tool_output(self, call_id, output):
+        await self._send({"type": "conversation.item.create",
+                          "item": {"type": "function_call_output", "call_id": call_id,
+                                   "output": output}})
 
     async def close(self):
         try:

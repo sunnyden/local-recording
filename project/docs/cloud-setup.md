@@ -1,5 +1,12 @@
 # Cloud setup and remaining enrollment
 
+The owner has since completed both OneDrive and proxy authorization and
+confirmed working device conversation. Some diagnostics below describe the
+earlier bring-up sequence. The current extension is documented in
+[`intelligent-recording.md`](intelligent-recording.md): personal-account
+secretless OBO is proven, and Fast Transcription uses the same existing
+Foundry account's Cognitive Services endpoint, not a new Speech resource.
+
 ## Created configuration
 
 The following resources were created in `copilot-test`, East US 2, in the
@@ -114,12 +121,12 @@ The ESP stores and refreshes that Graph authorization using the explicitly
 approved ordinary-NVS PoC policy. No client secret or eFuse key was created.
 
 No proxy consumer identity was guessed from the active Azure work account.
-The voice proxy still requires its separate explicit authorized-user enrollment
-before public deployment; Graph authorization is not proxy API authorization.
+The owner completed separate explicit authorized-user enrollment before
+public deployment; Graph authorization is not proxy API authorization.
 
 The optional `infra\scripts\enroll_user.py` operator utility can obtain a
 cryptographically verified consumer `oid` through an explicit browser device
-flow. It has not been run with a real account. It prints no OAuth token,
+flow. It prints no OAuth token,
 requests no offline access, saves no credentials and does not configure the
 public proxy automatically.
 

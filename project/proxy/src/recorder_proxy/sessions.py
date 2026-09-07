@@ -12,6 +12,7 @@ from starlette.websockets import WebSocketDisconnect
 from .audio import AudioError, OutputAudio
 from .protocol import Frame, ProtocolError, Sequence, control, parse_control
 from .providers import ProviderError
+from .voice_tools import VoiceTools
 
 logger = logging.getLogger("recorder_proxy.session")
 
@@ -82,7 +83,7 @@ class Playback:
 
 
 class VoiceSession:
-    def __init__(self, socket, provider, settings, principal):
+    def __init__(self, socket, provider, settings, principal, *, tools=None):
         self.socket, self.provider = socket, provider
         self.settings, self.principal = settings, principal
         self.id = str(uuid4())
@@ -108,6 +109,7 @@ class VoiceSession:
         self.ready = False
         self.tasks = []
         self.closing = False
+        self.tools = VoiceTools(tools, provider, self._tool_continue) if tools else None
 
     async def emit(self, kind, **fields):
         await self.outbound.put(control(kind, **fields))
@@ -219,9 +221,17 @@ class VoiceSession:
         async with self.response_lock:
             if (not self.response_pending or self.speech_active or self.current_response
                     or self.response_requested
+                    or (self.tools and self.tools.waiting)
                     or any(s.cleared and not s.acknowledged for s in self.streams.values())):
                 return
             self.response_pending = False
+            self.response_requested = True
+            await self.provider.respond()
+
+    async def _tool_continue(self):
+        async with self.response_lock:
+            if self.speech_active or self.current_response or self.response_requested or self.closing:
+                return
             self.response_requested = True
             await self.provider.respond()
 
@@ -336,6 +346,8 @@ class VoiceSession:
             await self.audio_changed.wait()
 
     async def interrupt(self):
+        if self.tools:
+            self.tools.cancel()
         self._retire_streams()
         if self.current_response:
             self.discard_responses.setdefault(self.current_response, None)
@@ -372,6 +384,8 @@ class VoiceSession:
                 self.speech_active = False
                 await self.emit("state", state="listening")
             elif event.type == "input_committed":
+                if self.tools:
+                    self.tools.cancel(new_turn=True)
                 self.response_pending = True
                 await self._maybe_respond()
             elif event.type == "response_started":
@@ -382,6 +396,14 @@ class VoiceSession:
                     raise SessionError("interruption_race", True)
                 self.response_requested = False
                 self.current_response = event.response_id
+                if self.tools:
+                    self.tools.start(event.response_id)
+            elif event.type in ("tool_added", "tool_delta", "tool_done"):
+                if event.response_id in self.discard_responses:
+                    continue
+                if not self.tools:
+                    raise ProviderError()
+                self.tools.accept(event)
             elif event.type in ("audio", "audio_done"):
                 if event.response_id in self.discard_responses:
                     continue
@@ -398,6 +420,8 @@ class VoiceSession:
                     if stream.response_id == event.response_id and not stream.cleared:
                         await self._finish_response_audio(stream)
                 self.current_response = None
+                if self.tools:
+                    self.tools.response_done(event.response_id)
                 # Recent canceled IDs discard late audio; older unknown IDs fail closed.
                 await self.emit("state", state="listening")
                 await self._maybe_respond()
@@ -500,6 +524,8 @@ class VoiceSession:
                 self.device_reader, self.microphone_writer, self.provider_reader,
                 self.audio_writer, self.device_writer, self.watchdog,
             )]
+            if self.tools:
+                self.tasks.append(asyncio.create_task(self.tools.watch()))
             done, _ = await asyncio.wait(self.tasks, return_when=asyncio.FIRST_COMPLETED)
             for task in done:
                 task.result()
@@ -522,6 +548,8 @@ class VoiceSession:
                 for task in self.tasks:
                     task.cancel()
                 await asyncio.gather(*self.tasks, return_exceptions=True)
+                if self.tools:
+                    await self.tools.close()
                 try:
                     await self.provider.close()
                 except ProviderError:

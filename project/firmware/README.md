@@ -95,7 +95,8 @@ cover:
   partial socket writes, 320 KiB ranges, uncertain commits, server-confirmed
   offsets, Retry-After, expiration/quota, cancellation, and malformed ranges.
 * The production HTTPS helper with bounded request-line/bearer headers and
-  network/time-readiness guards.
+  network/time-readiness guards, operation-specific deadlines/cancellation,
+  bounded processing responses, and trusted proxy-origin derivation.
 * The production Wi-Fi startup path with persisted configuration, connection
   retry limits, and stop-state handling.
 * The production voice client with a fake WebSocket/audio boundary: API-B token
@@ -117,6 +118,11 @@ cover:
 
 Mocks never contact a service or persist credentials. They do not validate the
 real TLS, Bluetooth, SD, DMA, radio, or acoustic behavior.
+
+Run `.\tools\test-intelligence.ps1` for timestamp naming, actual filesystem
+recovery/outbox, and cloud Sync/processing/UI integration tests. See
+[timestamped recording and processing](docs/recording-processing.md) for the
+new timezone option, protocol, durable receipts, and hardware acceptance gates.
 
 ## Safety gates
 
@@ -213,8 +219,12 @@ Authorized/denied/expired/error responses do not include the user code.
 
 ## Recovery and limits
 
-Recording IDs use random values, not an untrusted wall clock. New recordings
-are `.part`; finalized files are `.wav`. Every second, PCM is flushed/fsynced
+Recording names use `AudioRecording_YYYYMMDD_HHMMSS.wav` at capture start with
+the configured UTC offset (initially +08:00), adding `_001` etc. for collisions.
+Without a valid clock, names use `AudioRecording_UNTIMED_<random-id>.wav`.
+A small durable `.meta` preserves capture UTC/offset/clock validity; old
+`rec-*.wav` names remain accepted. Active recordings are `.part`; finalized
+files are `.wav`. Every second, PCM is flushed/fsynced
 before an alternating, checksummed 16-byte checkpoint is fsynced in `.ckp`.
 At boot only canonical recorder `.part` files with valid checkpoints are
 repaired, truncated to the last committed complete sample, and renamed.
@@ -227,9 +237,9 @@ Maximum data length is `0x7fff0000`, below signed 32-bit seek limits; stop rathe
 than cross RIFF/FAT/stdio limits. Catalog memory does not scale with file count.
 
 Uploads keep signed session URLs only in RAM. Restart starts a new session
-unless the remote final item can be reconciled. A protected NVS journal binds
-the most recent confirmed completion to drive/name/SHA-1; older completions are
-checked remotely. Existing or ambiguous final items are accepted only with
+unless the remote final item can be reconciled. Per-recording durable, nonsecret
+SD outbox receipts bind confirmed completion to drive/item/size/SHA-1 and retain
+processing status and sidecar IDs. Existing or ambiguous final items are accepted only with
 matching name, size, and Graph SHA-1. If the drive does not expose `sha1Hash`,
 reconciliation stops visibly instead of duplicating or overwriting a file.
 Throttling/transient range failures use bounded backoff and server range queries.
@@ -237,6 +247,10 @@ Numeric `Retry-After` up to 120 seconds is honored with cancellation checks;
 longer or date-form retry values stop the attempt rather than retry early.
 Session expiry, consent/quota errors, and unsupported reconciliation require a
 new explicit Sync attempt. This is not an unlimited background retry service.
+After upload, pending files use API-B HTTP status/process operations for synchronous
+transcription. Upload success remains distinct from processing completion;
+pending processing survives reboot and files above 30 minutes are skipped without
+losing their successful upload. See [processing details](docs/recording-processing.md).
 
 The v1 voice contract uses a hard **16000 samples / one second outstanding**
 limit with a 500 ms startup prefill, then PCM-rate proxy pacing. The software

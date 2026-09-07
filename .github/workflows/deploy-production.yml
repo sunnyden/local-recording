@@ -47,6 +47,10 @@ jobs:
       VOICELIVE_ENDPOINT: ${{ vars.VOICELIVE_ENDPOINT }}
       VOICELIVE_MODEL: ${{ vars.VOICELIVE_MODEL }}
       VOICELIVE_PROFILE: ${{ vars.VOICELIVE_PROFILE }}
+      RECORDING_PROCESSING_ENABLED: ${{ vars.RECORDING_PROCESSING_ENABLED || 'false' }}
+      ONEDRIVE_TOOLS_ENABLED: ${{ vars.ONEDRIVE_TOOLS_ENABLED || 'false' }}
+      GRAPH_ROOT_PATH: ${{ vars.GRAPH_ROOT_PATH || 'local-recording' }}
+      SPEECH_ENDPOINT: ${{ vars.SPEECH_ENDPOINT }}
     steps:
       - uses: actions/checkout@v4
 
@@ -76,6 +80,25 @@ jobs:
             echo "::error::ALLOWED_USER_OID must be the explicitly enrolled consumer oid."
             exit 1
           }
+          for name in RECORDING_PROCESSING_ENABLED ONEDRIVE_TOOLS_ENABLED; do
+            [[ "${!name}" == "true" || "${!name}" == "false" ]] || {
+              echo "::error::${name} must be exactly true or false."
+              exit 1
+            }
+          done
+          if [[ "$RECORDING_PROCESSING_ENABLED" == "true" ]]; then
+            speech_url='^https://[a-z0-9-]+\.cognitiveservices\.azure\.com/?$'
+            [[ "$SPEECH_ENDPOINT" =~ $speech_url ]] || {
+              echo "::error::Processing requires the Foundry Speech custom-domain HTTPS endpoint."
+              exit 1
+            }
+            voice_origin="${VOICELIVE_ENDPOINT%/}"
+            expected_speech="${voice_origin%.services.ai.azure.com}.cognitiveservices.azure.com"
+            [[ "${SPEECH_ENDPOINT%/}" == "$expected_speech" ]] || {
+              echo "::error::Speech and Voice Live must use the same selected Foundry resource."
+              exit 1
+            }
+          fi
 
       - name: Build and lint deployment template
         run: |
@@ -170,6 +193,10 @@ jobs:
             --arg endpoint "$VOICELIVE_ENDPOINT" \
             --arg model "$VOICELIVE_MODEL" \
             --arg profile "$VOICELIVE_PROFILE" \
+            --arg processing "$RECORDING_PROCESSING_ENABLED" \
+            --arg tools "$ONEDRIVE_TOOLS_ENABLED" \
+            --arg root "$GRAPH_ROOT_PATH" \
+            --arg speech "$SPEECH_ENDPOINT" \
             '{
               API_B_CLIENT_ID:$api,
               PUBLIC_CLIENT_A_ID:$client,
@@ -179,7 +206,11 @@ jobs:
               VOICELIVE_MODEL:$model,
               VOICELIVE_PROFILE:$profile,
               VOICELIVE_API_VERSION:"2026-07-15",
-              MAX_SESSION_SECONDS:"900"
+              MAX_SESSION_SECONDS:"900",
+              RECORDING_PROCESSING_ENABLED:$processing,
+              ONEDRIVE_TOOLS_ENABLED:$tools,
+              GRAPH_ROOT_PATH:$root,
+              SPEECH_ENDPOINT:$speech
             }')
           outputs=$(az deployment group create \
             --name "proxy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
@@ -224,4 +255,6 @@ jobs:
             echo "- Health: ${{ steps.deploy.outputs.proxy_url }}/readyz"
             echo "- Device endpoint: \`${{ steps.deploy.outputs.voice_url }}\`"
             echo "- Scale: 0-1 Consumption replicas"
+            echo "- Recording processing: \`$RECORDING_PROCESSING_ENABLED\`"
+            echo "- OneDrive tools: \`$ONEDRIVE_TOOLS_ENABLED\`"
           } >> "$GITHUB_STEP_SUMMARY"

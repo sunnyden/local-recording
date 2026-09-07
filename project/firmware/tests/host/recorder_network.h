@@ -16,3 +16,5 @@ void secret_zero(void *, size_t);
 char *form_encode(const char *);
 esp_err_t https_json(const char *, esp_http_client_method_t, const char *,
                      const char *, const char *, int *, cJSON **);
+esp_err_t https_json_retry_info(const char *, esp_http_client_method_t, const char *,
+                     const char *, const char *, int *, cJSON **, unsigned *);

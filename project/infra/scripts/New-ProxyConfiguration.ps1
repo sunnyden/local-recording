@@ -5,7 +5,10 @@ param(
     [string]$FoundationStatePath = (Join-Path $PSScriptRoot '..\.state\foundation.json'),
     [string]$IdentityStatePath = (Join-Path $PSScriptRoot '..\.state\identity.json'),
     [string]$OutputPath = (Join-Path $PSScriptRoot '..\.state\proxy-configuration.json'),
-    [ValidateRange(1, 900)][int]$MaxSessionSeconds = 900
+    [ValidateRange(1, 900)][int]$MaxSessionSeconds = 900,
+    [switch]$EnableRecordingProcessing,
+    [switch]$EnableOneDriveTools,
+    [string]$GraphRootPath = 'local-recording'
 )
 . (Join-Path $PSScriptRoot 'Common.ps1')
 if ($AllowedUserOid -eq [guid]::Empty) {
@@ -16,6 +19,15 @@ $identity = Get-Content -LiteralPath $IdentityStatePath -Raw | ConvertFrom-Json 
 if ($foundation.tenantId -ne $identity.tenantId -or $foundation.resourceGroup -ne 'copilot-test') {
     throw 'Foundation and identity state must describe the same tenant and copilot-test deployment.'
 }
+if ($GraphRootPath.Length -gt 512 -or $GraphRootPath -match '[\\\x00-\x1f]' -or
+    @($GraphRootPath.Split('/') | Where-Object { $_ -in @('', '.', '..') }).Count) {
+    throw 'Graph root must be a relative OneDrive folder path without empty or traversal segments.'
+}
+$voiceEndpoint = $foundation.outputs.voiceLiveEndpoint.value
+if ($voiceEndpoint -notmatch '^https://([a-z0-9-]+)\.services\.ai\.azure\.com/?$') {
+    throw 'Cannot derive the trusted Speech endpoint from the selected Foundry resource.'
+}
+$speechEndpoint = "https://$($Matches[1]).cognitiveservices.azure.com"
 Write-JsonAtomic -Path $OutputPath -Value @{
     authorizedUserConfigured = $true
     environment = @{
@@ -28,6 +40,10 @@ Write-JsonAtomic -Path $OutputPath -Value @{
         VOICELIVE_PROFILE = $foundation.outputs.voiceLiveProfile.value
         VOICELIVE_API_VERSION = '2026-07-15'
         MAX_SESSION_SECONDS = $MaxSessionSeconds.ToString([Globalization.CultureInfo]::InvariantCulture)
+        RECORDING_PROCESSING_ENABLED = $EnableRecordingProcessing.IsPresent.ToString().ToLowerInvariant()
+        ONEDRIVE_TOOLS_ENABLED = $EnableOneDriveTools.IsPresent.ToString().ToLowerInvariant()
+        GRAPH_ROOT_PATH = $GraphRootPath
+        SPEECH_ENDPOINT = $speechEndpoint
     }
 }
 Write-Host "Nonsecret proxy configuration saved to $OutputPath. This does not sign in or authorize a Microsoft account."

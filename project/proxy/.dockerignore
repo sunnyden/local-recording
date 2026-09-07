@@ -5,3 +5,4 @@ __pycache__
 tests
 *.egg-info
 .env*
+.recording-*.wav

@@ -36,8 +36,9 @@ try {
     & .\upload-test.exe
     if ($LASTEXITCODE) { throw "Host uploader tests failed ($LASTEXITCODE)" }
     & $Compiler cc -std=c11 -Wall -Wextra -Werror -D_CRT_SECURE_NO_WARNINGS -D_GNU_SOURCE `
-        -I "$root\tests\host" -I "$root\components\recorder_core\include" -I $cjson `
+        -I "$root\tests\host" -I "$root\components\recorder_core\include" -I "$root\components\network\include" -I $cjson `
         "$root\tests\https_test.c" "$root\components\network\https.c" `
+        "$root\components\network\proxy_endpoint.c" `
         "$root\components\recorder_core\voice_frame.c" "$cjson\cJSON.c" -o https-test.exe
     if ($LASTEXITCODE) { throw "Host HTTPS compile failed ($LASTEXITCODE)" }
     & .\https-test.exe

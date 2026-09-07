@@ -33,7 +33,7 @@ jobs:
 
       - name: Run proxy, companion, infrastructure and protocol tests
         run: |
-          PYTHONPATH=project/proxy/src python -m pytest project/proxy/tests project/infra/tests/test_enrollment.py project/tests -q
+          PYTHONPATH=project/proxy/src python -m pytest project/proxy/tests project/infra/tests project/tests -q
           PYTHONPATH=project/companion/src python -m pytest project/companion/tests -q
 
       - name: Build and lint Bicep
@@ -45,6 +45,10 @@ jobs:
           az bicep lint --file project/infra/bicep/proxy.bicep
           az bicep build --file project/infra/bicep/identity-probe.bicep --stdout > /dev/null
           az bicep lint --file project/infra/bicep/identity-probe.bicep
+          az bicep build --file project/infra/bicep/obo-probe.bicep --stdout > /dev/null
+          az bicep lint --file project/infra/bicep/obo-probe.bicep
+          az bicep build --file project/infra/bicep/speech-probe.bicep --stdout > /dev/null
+          az bicep lint --file project/infra/bicep/speech-probe.bicep
 
       - name: Run infrastructure PowerShell tests
         shell: pwsh

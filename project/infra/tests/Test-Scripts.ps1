@@ -83,8 +83,37 @@ try {
     if (-not $generated.authorizedUserConfigured -or
         $generated.environment.PUBLIC_CLIENT_A_ID -ne '33333333-3333-3333-3333-333333333333' -or
         $generated.environment.ALLOWED_USER_OID -ne '55555555-5555-5555-5555-555555555555' -or
-        $generated.environment.MAX_SESSION_SECONDS -cne '900') {
+        $generated.environment.MAX_SESSION_SECONDS -cne '900' -or
+        $generated.environment.RECORDING_PROCESSING_ENABLED -cne 'false' -or
+        $generated.environment.ONEDRIVE_TOOLS_ENABLED -cne 'false' -or
+        $generated.environment.GRAPH_ROOT_PATH -cne 'local-recording' -or
+        $generated.environment.SPEECH_ENDPOINT -cne 'https://example.cognitiveservices.azure.com') {
         throw 'Proxy configuration generation did not match the application contract.'
+    }
+    & (Join-Path $scripts 'New-ProxyConfiguration.ps1') `
+        -AllowedUserOid '55555555-5555-5555-5555-555555555555' `
+        -IdentityStatePath $identityPath -FoundationStatePath $foundationPath `
+        -OutputPath $configurationPath -EnableRecordingProcessing -EnableOneDriveTools `
+        -GraphRootPath 'recordings/archive'
+    $generated = Get-Content -LiteralPath $configurationPath -Raw | ConvertFrom-Json -AsHashtable
+    if ($generated.environment.RECORDING_PROCESSING_ENABLED -cne 'true' -or
+        $generated.environment.ONEDRIVE_TOOLS_ENABLED -cne 'true' -or
+        $generated.environment.GRAPH_ROOT_PATH -cne 'recordings/archive') {
+        throw 'Explicit intelligence configuration was not preserved.'
+    }
+    foreach ($root in @('', '../private', '/root', 'a/../b', 'a\b', 'a//b')) {
+        $rejected = $false
+        try {
+            & (Join-Path $scripts 'New-ProxyConfiguration.ps1') `
+                -AllowedUserOid '55555555-5555-5555-5555-555555555555' `
+                -IdentityStatePath $identityPath -FoundationStatePath $foundationPath `
+                -OutputPath $configurationPath -GraphRootPath $root
+        }
+        catch {
+            if ($_.Exception.Message -notlike 'Graph root must*') { throw }
+            $rejected = $true
+        }
+        if (-not $rejected) { throw 'Unsafe OneDrive root was accepted.' }
     }
 }
 finally {

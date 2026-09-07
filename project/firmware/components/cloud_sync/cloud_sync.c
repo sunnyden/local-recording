@@ -1,4 +1,5 @@
 #include "cloud_sync.h"
+#include "processing_client.h"
 #include "recorder_network.h"
 #include "identity.h"
 #include "recorder.h"
@@ -17,6 +18,9 @@ static _Atomic bool active, cancelled;
 static _Atomic int error_code;
 static _Atomic uint32_t confirmed, total_bytes;
 static _Atomic unsigned done_count;
+static _Atomic unsigned pending_count, processed_count, skipped_count;
+static _Atomic int phase, processing_error;
+void cloud_sync_phase(sync_phase_t next) { atomic_store(&phase, next); }
 bool cloud_sync_cancelled(void) { return atomic_load(&cancelled); }
 void cloud_sync_cancel(void) { atomic_store(&cancelled, true); }
 void cloud_sync_progress(uint32_t bytes, uint32_t total)
@@ -27,7 +31,11 @@ sync_status_t cloud_sync_status(void)
 {
     return (sync_status_t){.active = atomic_load(&active), .error = atomic_load(&error_code),
         .confirmed_bytes = atomic_load(&confirmed), .total_bytes = atomic_load(&total_bytes),
-        .files_done = atomic_load(&done_count)};
+        .files_done = atomic_load(&done_count), .phase = atomic_load(&phase),
+        .processing_result = atomic_load(&processing_error),
+        .processing_pending = atomic_load(&pending_count),
+        .processing_completed = atomic_load(&processed_count),
+        .processing_skipped = atomic_load(&skipped_count)};
 }
 static const char *get_string(cJSON *json, const char *name)
 {
@@ -118,7 +126,7 @@ static bool completed_item(cJSON *json, const char *name, uint32_t size)
 {
     const char *remote_name = get_string(json, "name"), *id = get_string(json, "id");
     cJSON *remote_size = cJSON_GetObjectItemCaseSensitive(json, "size");
-    return id && remote_name && !strcmp(remote_name, name) &&
+    return id && *id && strlen(id) <= 128 && remote_name && !strcmp(remote_name, name) &&
         cJSON_IsNumber(remote_size) && remote_size->valuedouble == size &&
         cJSON_IsObject(cJSON_GetObjectItemCaseSensitive(json, "file"));
 }
@@ -128,6 +136,46 @@ static bool matching_item(cJSON *json, const char *name, uint32_t size, const ch
     cJSON *file = cJSON_GetObjectItemCaseSensitive(json, "file");
     const char *remote_hash = get_string(cJSON_GetObjectItemCaseSensitive(file, "hashes"), "sha1Hash");
     return remote_hash && !strcasecmp(remote_hash, hash);
+}
+static void process_job(processing_job_t *job)
+{
+    processing_result_t result = processing_run(job);
+    if (job->state == PROCESS_COMPLETED) atomic_fetch_add(&processed_count, 1);
+    else if (job->state == PROCESS_TOO_LONG) {
+        atomic_fetch_add(&skipped_count, 1);
+        cloud_sync_phase(SYNC_SKIPPED);
+    } else {
+        atomic_fetch_add(&pending_count, 1);
+        atomic_store(&processing_error, result);
+        cloud_sync_phase(SYNC_UPLOADED_PENDING);
+        ESP_LOGW("sync", "WAV uploaded; processing pending: %s", cloud_sync_result_name(result));
+    }
+}
+static esp_err_t uploaded(const char *name, const char *drive, const char *hash,
+                          uint32_t size, uint32_t pcm_bytes, cJSON *item)
+{
+    processing_job_t job = {.source_size = size,
+        .state = pcm_bytes > PCM_RATE * 2u * 1800u ? PROCESS_TOO_LONG : PROCESS_PENDING};
+    const char *id = get_string(item, "id");
+    if (!id || !*id || strlen(id) >= sizeof(job.item_id)) return ESP_ERR_INVALID_RESPONSE;
+    strcpy(job.name, name); strcpy(job.drive_id, drive);
+    strcpy(job.item_id, id); strcpy(job.source_sha1, hash);
+    recording_time_t stamp;
+    esp_err_t err = storage_recording_time(name, &stamp);
+    if (err == ESP_OK) recording_timestamp(&stamp, job.recorded_at);
+    else if (err != ESP_ERR_NOT_FOUND) {
+        ESP_LOGW("sync", "Recording time metadata unavailable: %s", esp_err_to_name(err));
+    }
+    cloud_sync_progress(size, size);
+    err = processing_outbox_save(&job);
+    if (err != ESP_OK) {
+        atomic_fetch_add(&pending_count, 1);
+        atomic_store(&processing_error, PROCESS_STORAGE_ERROR);
+        cloud_sync_phase(SYNC_UPLOADED_PENDING);
+        return err;
+    }
+    process_job(&job);
+    return ESP_OK;
 }
 static esp_err_t sync_one(const char *name, const char *drive)
 {
@@ -140,15 +188,26 @@ static esp_err_t sync_one(const char *name, const char *drive)
     uint32_t size = 0;
     esp_err_t err = hash_file(file, hash, &size);
     if (err != ESP_OK) { fclose(file); return err; }
+    processing_job_t existing;
+    err = processing_outbox_load(name, &existing);
+    if (err == ESP_OK) {
+        fclose(file);
+        if (strcmp(existing.drive_id, drive) || strcmp(existing.source_sha1, hash) ||
+            existing.source_size != size) return ESP_ERR_INVALID_STATE;
+        cloud_sync_progress(size, size);
+        return ESP_OK; /* Already drained from durable outbox this Sync, no WAV reupload. */
+    }
+    if (err != ESP_ERR_NOT_FOUND) { fclose(file); return err; }
+    cloud_sync_phase(SYNC_UPLOADING);
     cloud_sync_progress(0, size);
     snprintf(url, sizeof(url), GRAPH "/root:/local-recording/%s", name);
     cJSON *json = NULL; int status;
     err = graph_request("recording lookup", url, HTTP_METHOD_GET, NULL, &status, &json);
     if (err == ESP_OK && status == 200) {
         bool match = matching_item(json, name, size, hash);
+        err = match ? uploaded(name, drive, hash, size, wave.bytes, json) : ESP_ERR_INVALID_STATE;
         cJSON_Delete(json); fclose(file);
-        if (match) cloud_sync_progress(size, size);
-        return match ? ESP_OK : ESP_ERR_INVALID_STATE;
+        return err;
     }
     cJSON_Delete(json); json = NULL;
     if (err != ESP_OK || status != 404) {
@@ -172,20 +231,15 @@ static esp_err_t sync_one(const char *name, const char *drive)
     secret_zero(upload_url, strlen(upload_url)); free(upload_url);
     fclose(file);
     bool complete = err == ESP_OK && completed_item(json, name, size);
-    cJSON_Delete(json); json = NULL;
     if (!complete && !cloud_sync_cancelled()) {
+        cJSON_Delete(json); json = NULL;
         /* Lost final response: verify immutable remote identity, never rename or overwrite. */
         err = graph_request("completed recording verification", url, HTTP_METHOD_GET, NULL, &status, &json);
         complete = err == ESP_OK && status == 200 && matching_item(json, name, size, hash);
     }
+    if (complete) err = uploaded(name, drive, hash, size, wave.bytes, json);
     cJSON_Delete(json);
     if (!complete) return err == ESP_OK ? ESP_ERR_INVALID_RESPONSE : err;
-    /* A compact protected journal binds the latest confirmed completion to drive.
-       Older entries are reconciled by remote hash rather than trusting SD marks. */
-    char journal[256];
-    snprintf(journal, sizeof(journal), "%s|%s|%s", drive, name, hash);
-    err = credential_write("last_sync", journal);
-    if (err == ESP_OK) cloud_sync_progress(size, size);
     return err;
 }
 static void sync_worker(void *arg)
@@ -193,6 +247,19 @@ static void sync_worker(void *arg)
     (void)arg;
     char drive[129], name[65]; size_t count = 0;
     esp_err_t err = ensure_folder(drive);
+    for (size_t index = 0; err == ESP_OK && !cloud_sync_cancelled(); ++index) {
+        err = processing_outbox_catalog(index, name, &count);
+        if (err != ESP_OK || index >= count) break;
+        processing_job_t job;
+        err = processing_outbox_load(name, &job);
+        if (err != ESP_OK) break;
+        if (strcmp(job.drive_id, drive)) {
+            atomic_fetch_add(&pending_count, 1);
+            atomic_store(&processing_error, PROCESS_NOT_ALLOWED);
+            continue; /* Never submit another signed-in user's drive-bound outbox. */
+        }
+        process_job(&job);
+    }
     for (size_t index = 0; err == ESP_OK && !cloud_sync_cancelled(); ++index) {
         err = storage_catalog(index, name, sizeof(name), &count);
         if (err != ESP_OK || index >= count) break;
@@ -210,6 +277,9 @@ esp_err_t cloud_sync_start(void)
     bool expected = false;
     if (!atomic_compare_exchange_strong(&active, &expected, true)) return ESP_ERR_INVALID_STATE;
     atomic_store(&cancelled, false); atomic_store(&done_count, 0);
+    atomic_store(&pending_count, 0); atomic_store(&processed_count, 0);
+    atomic_store(&skipped_count, 0); atomic_store(&processing_error, PROCESS_OK);
+    cloud_sync_phase(SYNC_UPLOADING);
     atomic_store(&error_code, ESP_OK); cloud_sync_progress(0, 0);
     if (xTaskCreate(sync_worker, "cloud_sync", 12288, NULL, 4, NULL) != pdPASS) {
         atomic_store(&active, false); return ESP_ERR_NO_MEM;

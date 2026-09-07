@@ -52,6 +52,24 @@ foreach ($entry in $configuration.environment.GetEnumerator()) {
     }
 }
 $configuration.environment.AZURE_CLIENT_ID = $state.outputs.proxyIdentityClientId.value
+foreach ($flag in @('RECORDING_PROCESSING_ENABLED', 'ONEDRIVE_TOOLS_ENABLED')) {
+    if ($configuration.environment.ContainsKey($flag) -and
+        $configuration.environment[$flag] -cnotin @('true', 'false')) {
+        throw "$flag must be exactly true or false."
+    }
+}
+if ($configuration.environment.ContainsKey('RECORDING_PROCESSING_ENABLED') -and
+    $configuration.environment.RECORDING_PROCESSING_ENABLED -ceq 'true') {
+    $voiceEndpoint = $state.outputs.voiceLiveEndpoint.value
+    if ($voiceEndpoint -notmatch '^https://([a-z0-9-]+)\.services\.ai\.azure\.com/?$') {
+        throw 'Cannot resolve the Speech resource from the selected foundation.'
+    }
+    $expectedSpeechEndpoint = "https://$($Matches[1]).cognitiveservices.azure.com"
+    if (-not $configuration.environment.ContainsKey('SPEECH_ENDPOINT') -or
+        $configuration.environment.SPEECH_ENDPOINT.TrimEnd('/') -cne $expectedSpeechEndpoint) {
+        throw 'Speech must use the selected Foundry custom-domain endpoint.'
+    }
+}
 Write-Host "Proxy: $($state.namePrefix)-proxy in copilot-test, $($state.location)"
 Write-Host "Image: $($image.image)"
 Write-Host 'Public HTTPS/WSS ingress, managed identity, 0-1 Consumption replicas, 0.25 vCPU/0.5 GiB.'

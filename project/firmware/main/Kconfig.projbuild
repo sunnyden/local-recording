@@ -1,4 +1,11 @@
 menu "Recorder"
+config RECORDER_TIMEZONE_OFFSET_MINUTES
+    int "Recording filename UTC offset in minutes (east is positive)"
+    range -720 840
+    default 480
+    help
+        Fixed local timezone for new recording names and durable capture metadata.
+        480 means UTC+08:00. Does not change UTC system time or existing names.
 config RECORDER_SPI_LCD_CONFIRMED
     bool "Physical SPI LCD jumper configuration has been verified"
     default n

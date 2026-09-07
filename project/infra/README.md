@@ -160,6 +160,34 @@ Production deployment uses `bicep\proxy.bicep` against the existing foundation;
 it does not recreate Foundry, app registrations, managed identities, or the
 Container Apps environment.
 
+## Intelligent recording
+
+See [`intelligent-recording.md`](../docs/intelligent-recording.md) for the
+processing lifecycle, supported limits, consent and device retry behavior.
+There is no transcription queue or worker deployment.
+
+`scripts\Configure-Obo.ps1` previews the additional API-B Graph delegated
+permission, combined-consent configuration and runtime managed-identity
+federation. Apply it explicitly using an authorized operator account.
+GitHub's resource-group Contributor role cannot perform this directory
+bootstrap. Fresh personal-account combined consent and a real OBO exchange
+must precede enabling the backend features.
+
+`New-ProxyConfiguration.ps1` now emits `GRAPH_ROOT_PATH=local-recording`,
+the existing Foundry resource's `SPEECH_ENDPOINT`, and two disabled-by-default
+flags: `RECORDING_PROCESSING_ENABLED` and `ONEDRIVE_TOOLS_ENABLED`.
+Use `-EnableRecordingProcessing` and `-EnableOneDriveTools` for deliberate
+rollout after the prerequisites are satisfied. No additional Speech resource
+or key is created.
+
+`scripts\Test-FastTranscription.ps1 -Apply` runs a manual, ingress-free,
+180-second diagnostic with the actual runtime identity and current deployed
+image. It submits only one second of synthetic silence to the same Foundry
+account's Speech endpoint. It is not a worker or an accuracy test, and does
+not request consumer credentials. Inspect `.state\speech-probe.json` before
+retrying an interrupted invocation. `bicep\obo-probe.bicep` is a separate
+manual consumer-authorization diagnostic; run it only with the user present.
+
 After registration, `scripts\Test-DeviceGrant.ps1 -Resource graph` (or `proxy`)
 checks that the consumer endpoint accepts that API's device-grant request.
 It intentionally does not display/redeem a device code or authorize a user.

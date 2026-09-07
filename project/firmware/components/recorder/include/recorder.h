@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "recorder_core.h"
+#include "recording_name.h"
 
 typedef struct {
     FILE *file;
@@ -20,6 +21,7 @@ esp_err_t storage_append(recording_file_t *recording, const void *pcm, size_t by
 esp_err_t storage_finish(recording_file_t *recording);
 esp_err_t storage_catalog(size_t index, char *name, size_t capacity, size_t *count);
 bool storage_valid_name(const char *name);
+esp_err_t storage_recording_time(const char *name, recording_time_t *stamp);
 
 typedef enum { LOCAL_IDLE, LOCAL_RECORD, LOCAL_PLAY, LOCAL_STOPPING } local_mode_t;
 typedef struct {

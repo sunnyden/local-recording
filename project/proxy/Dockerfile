@@ -10,6 +10,8 @@ RUN apt-get update \
     && python -m pip uninstall --yes pip setuptools
 COPY src ./src
 ENV PYTHONPATH=/app/src
+RUN mkdir /app/data && chown 65532:65532 /app/data && chmod 700 /app/data
+WORKDIR /app/data
 USER 65532:65532
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s \

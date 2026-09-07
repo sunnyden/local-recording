@@ -33,6 +33,24 @@ registrations, model selection, or broad subscription infrastructure.
 
 ## OIDC trust and permissions
 
+Intelligent recording adds four nonsecret `production` environment variables:
+`RECORDING_PROCESSING_ENABLED`, `ONEDRIVE_TOOLS_ENABLED`, `GRAPH_ROOT_PATH` and
+`SPEECH_ENDPOINT`. The two feature flags default to `false`; the root defaults
+to `local-recording`. When processing is enabled, the workflow requires the
+Cognitive Services custom-domain origin of the same Foundry account used by
+Voice Live. It does not create a standalone Speech resource.
+
+Enabling these settings requires prior API-B OBO federation/Graph-consent
+bootstrap using `Configure-Obo.ps1`. The deployment workflow deliberately
+does not modify Entra registrations or grant consent. PR validation includes
+all infrastructure Python tests and both manual OBO/Speech probe templates;
+compiling those templates does not execute diagnostics.
+
+See [`intelligent-recording.md`](intelligent-recording.md) for rollout and
+acceptance requirements. Processing is synchronous inside the proxy, not a
+queue/worker deployment. Disabling a feature restores the corresponding
+backend gate without changing the existing voice wire protocol.
+
 Deployment application: `local-recording-github-deploy`
 
 Federated subject:

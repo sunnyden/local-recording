@@ -107,4 +107,6 @@ resource proxy 'Microsoft.App/containerApps@2025-01-01' = {
 
 output proxyUrl string = 'https://${proxy.properties.configuration.ingress.fqdn}'
 output voiceWebSocketUrl string = 'wss://${proxy.properties.configuration.ingress.fqdn}/v1/voice'
+output recordingProcessUrl string = 'https://${proxy.properties.configuration.ingress.fqdn}/v1/recordings/process'
+output recordingStatusUrl string = 'https://${proxy.properties.configuration.ingress.fqdn}/v1/recordings/status'
 output proxyResourceId string = proxy.id

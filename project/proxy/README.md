@@ -39,7 +39,9 @@ other tenants/users/clients, expired tokens, token-directed keys, and arbitrary
 issuer/JWKS overrides are rejected. Key refresh is cached for one hour and
 rate-limited to once per 30 seconds, including unknown-kid attempts. Issuer,
 audience and signature checks are never disabled on failure. Use separate Graph
-tokens only on the device; never send refresh tokens to this service.
+tokens for direct upload only on the device; never send refresh tokens to this
+service. Optional server-side Graph access exchanges the validated API-B token
+through OBO; it never treats a Graph token as API-B authentication.
 
 ## Run and validate (PowerShell, from repository root)
 
@@ -100,9 +102,9 @@ service-owned turn detection/interruption, with `create_response: false`.
 After the service commits a user turn, the proxy creates its response only
 after outstanding clears have final device acknowledgments and their
 truncations have been sent (and any canceled response has completed).
-`tools: []` and
-`tool_choice: none` are explicit; incoming function calls are fatal, not
-executed. The exact model and required audio/VAD/AEC/tool settings must be
+By default, `tools: []` and `tool_choice: none` are explicit; incoming function
+calls are fatal, not executed. The optional read-only tool rollout is described
+below. The exact model and required audio/VAD/AEC/tool settings must be
 confirmed in **`session.updated` before `ready`**.
 The observed native `gpt-realtime-2` response name
 `gpt-realtime-2-global-standard` is an explicitly accepted canonical alias,
@@ -178,6 +180,179 @@ production `respond()` method, completed through the real event mapper and
 resampler: 21,600 samples at 24 kHz became 14,400 samples at 16 kHz. No user
 microphone audio was sent and no generated audio was persisted. Azure CLI was
 injected into the direct diagnostic only; production authentication was unchanged.
+
+## Optional recording intelligence
+
+The authoritative HTTP contract is `..\protocols\recording-processing-v1.md`.
+The ESP audio/control protocol and its queue, playback epoch, and truncation
+semantics are unchanged. Both new features are **off by default** so deployment
+can enable processing independently of voice retrieval.
+
+| Environment variable | Default / requirement |
+| --- | --- |
+| `RECORDING_PROCESSING_ENABLED` | `false`; set `true` for synchronous HTTP processing |
+| `ONEDRIVE_TOOLS_ENABLED` | `false`; separately enable the three voice read tools |
+| `GRAPH_ROOT_PATH` | `local-recording`; operator-configured relative folder, up to eight segments |
+| `SPEECH_ENDPOINT` | Required when processing is enabled; existing resource's HTTPS custom origin, preferably `https://RESOURCE.cognitiveservices.azure.com` |
+
+Flags accept only `true`/`false`. Speech origins must end in
+`.cognitiveservices.azure.com` or `.services.ai.azure.com`, with no credentials,
+path, query, alternate port, or fragment. The API is pinned to
+`/speechtotext/transcriptions:transcribe?api-version=2025-10-15`. An empty
+multipart `definition` (`{"locales":[]}`) deliberately selects automatic
+multilingual model, not a fixed candidate-language list. The audio is streamed
+as multipart data; arbitrary public audio URLs and batch/LLM transcription
+fallbacks are not supported. Speech uses the existing async managed identity
+with scope `https://cognitiveservices.azure.com/.default`.
+
+`GRAPH_ROOT_PATH` is the canonical deployment name. The initial
+`ONEDRIVE_ALLOWED_ROOT` name is accepted as a compatibility alias; setting both
+to different values fails startup rather than silently selecting another scope.
+
+### Delegated identity and storage boundary
+
+API B must have delegated Graph `Files.ReadWrite` consent, combined consent
+configured for client A, and a federated credential trusting the workload's
+managed identity. The federation issuer is the **application/MI home tenant**,
+the subject is the MI **principal/object ID**, and its audience is
+`api://AzureADTokenExchange`. Those are deployment prerequisites, not inferred
+from user input or created by this application.
+
+`GraphTokens` uses asynchronous HTTPx OBO requests against the fixed, validated
+consumer tenant authority. It requests a fresh MI credential
+(`api://AzureADTokenExchange/.default`) for each exchange and supplies that token
+as `client_assertion`, separately from the incoming API-B user `assertion`.
+There is no client secret, synchronous MSAL call, refresh-token persistence,
+database, queue, worker service, or durable user-token store. At most eight
+Graph access-token cache entries exist in process memory, keyed by validated
+owner and incoming-assertion digest. Graph 401 triggers one renewed exchange;
+user-token expiry still limits authorization.
+
+Graph access resolves the authenticated user's personal drive and the configured
+root, then checks every item's actual parent-ID ancestry (maximum 32 hops).
+A textual path prefix is never authorization. Cross-drive references, remote
+items/shortcuts, symbolic-link facets, packages, arbitrary request URLs, and
+pagination outside the authorized collection are rejected. Downloads follow at
+most three redirects to approved personal OneDrive HTTPS download domains and
+never forward a Graph bearer to the download host. Expanding the configured
+root expands what the voice tools can read: treat it as a privileged change.
+
+### Synchronous processing and recovery
+
+`POST /v1/recordings/process` and `POST /v1/recordings/status` require the same
+validated API-B bearer as voice. JSON is limited to 4096 UTF-8 bytes:
+
+```json
+{
+  "v": 1,
+  "drive_id": "GRAPH_DRIVE_ID",
+  "item_id": "GRAPH_ITEM_ID",
+  "source_sha1": "0123456789012345678901234567890123456789",
+  "source_size": 320044,
+  "recorded_at": "2026-09-07T22:05:36+08:00"
+}
+```
+
+`recorded_at` is optional, timezone-qualified, and labeled as a device hint in
+the sidecar. Unknown fields, caller-selected options/output paths/URLs, duplicate
+JSON keys, and alternate versions are rejected. The operation ID is derived
+from validated owner, drive, item, SHA1, and fixed pipeline version/options.
+
+Processing is limited to one in-flight operation per process, **without a
+queue**; duplicates receive `processing_in_progress`, unrelated contention
+receives `busy`. This slot is independent of voice. HTTP handlers themselves
+are bounded to eight concurrent requests. Keep one worker and one replica;
+this is not a cross-replica lock.
+
+The server verifies Graph size/hash metadata, downloads to a private random
+project-working-directory WAV, hashes the actual content, and parses the RIFF
+chunks. Only PCM16, mono, 16 kHz WAV with actual duration at most 1800 seconds
+is accepted; maximum file size is 57,665,536 bytes including a bounded header
+allowance. File reads/writes and WAV parsing use bounded background thread
+operations, not the voice event loop. Speech requests are asynchronous.
+The entire processing budget is 180 seconds, including Graph and output writes.
+Timeout/disconnect/cancellation cancels the operation and removes its WAV.
+The container runs in a private writable `/app/data` directory; hard container
+termination relies on ephemeral container-storage disposal. No token or
+transcript is written to the local spool.
+
+Outputs beside the input WAV:
+
+* `<stem>.txt`: readable timestamped multilingual phrases, source/operation
+  identity, and a content checksum. Silence explicitly says “No speech recognized.”
+* `<stem>.transcription.json`: completion marker, source SHA1/ETag, pipeline
+  metadata, phrase offsets/locales, readable text, and the TXT ID/checksum.
+
+The WAV is never modified. Uploads are create-only with conflict-fail
+semantics. TXT is written first and JSON **last**; both are read back and source
+ETag is checked before returning completion. An interrupted TXT-only write is
+recoverable on retry without retranscribing or replacing the TXT. Modified,
+unrelated, or inconsistent sidecars are conflicts, not permission to overwrite
+user files. A valid empty Speech result is completion; malformed provider output
+is never converted into silence.
+
+Success is HTTP 200 with `v`, `status` (`completed` or `already_completed`),
+`operation_id`, `json_item_id`, and `text_item_id`, never transcript text.
+The operation ID is 64 hexadecimal characters and returned sidecar IDs are
+bounded to 128 characters for the device response buffers.
+Status never invokes Speech or downloads the WAV; it reconciles bounded remote
+sidecars after restart and returns `not_started`, `processing`,
+`already_completed`, or `retry_required`. Errors use
+`{"v":1,"error":{"code":"...","retryable":false}}` and the stable codes in the
+shared contract. HTTP 202 and fire-and-forget processing are not used. Warm
+`/readyz` first, allow roughly 210 seconds at the client, and query status after
+uncertain delivery rather than reuploading audio.
+
+### Server-only voice tools
+
+When enabled, the verified Voice Live session advertises only:
+
+* `search_onedrive`: bounded filename search beneath the configured root.
+* `get_onedrive_item`: item metadata with source name and timestamps.
+* `read_onedrive_text`: bounded UTF-8 TXT/JSON/Markdown/WebVTT source content.
+
+There is no device `tools.execute` message, generic remote execution, arbitrary
+URL fetcher, write tool, or live-weather capability. Schemas reject extra
+properties. Retrieval is bounded to ten results/page, 50 metadata items and
+eight tool calls per user turn, 256 KiB per text fetch, 12 KiB output per call,
+and 32 KiB total tool output per turn. Search is deliberately a bounded filename
+scan, not an exhaustive full-text index; responses identify this limitation.
+
+Function arguments accumulate by call/item ID, with an 8 KiB cap. Added/delta/
+done and response-completion variants are reconciled; completed calls execute
+once. Tool work runs separately from the provider reader, sends server-side
+`function_call_output`, and requests one continuation only after all calls in
+that response have completed. Speech interruption, new turns, stop, and session
+expiry cancel stale work. Original repeated/interleaved audio deltas still
+share their ordered response epoch and retain played-position truncation.
+
+The system prompt requires source filenames/timestamps, distinguishes inference
+from evidence, and labels transcript/metadata content as untrusted data rather
+than instructions. These are explicit grounding/injection boundaries, not a
+claim that prompt injection can be eliminated by a prompt alone.
+
+### Validation and remaining live gates
+
+The existing test runner includes real-source HTTP-mocked OBO, Graph, Speech,
+processing/recovery, authenticated API, and voice-tool lifecycle tests alongside
+the original voice regressions. No additional runtime dependency or lockfile
+version change is needed: HTTPx and async Azure Identity were already pinned.
+
+The operator reports a successful live MI prerequisite probe against the existing
+resource's custom cognitive-services endpoint: one second of synthetic PCM16
+mono 16 kHz silence, `{"locales":[]}`, HTTP 200 in approximately 0.3 seconds,
+with an explicit 1000 ms duration and empty phrase arrays. This proves that
+probe's authentication, input format, and valid no-speech behavior, not spoken
+accuracy or this application's complete processing path.
+
+Live acceptance remains an operator gate: verify real multilingual spoken audio,
+measure a representative
+30-minute input within the ingress deadline, verify consumer OneDrive sidecar
+create/read/retry, and exercise real Voice Live function event/configuration
+acceptance before setting `ONEDRIVE_TOOLS_ENABLED=true`. Mocked tests do not
+establish those service-side capabilities or production latency. This code does
+not create credentials/apps, request user sign-in, deploy resources, or claim
+that these new end-to-end live gates have passed.
 
 A fuller live `VoiceSession` diagnostic streamed paced, locally synthesized
 16 kHz microphone PCM while consuming returned audio at real-time speed.

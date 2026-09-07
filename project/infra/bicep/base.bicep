@@ -129,6 +129,7 @@ output foundryResourceName string = foundry.name
 output foundryResourceId string = foundry.id
 output foundryProjectId string = project.id
 output voiceLiveEndpoint string = 'https://${foundryName}.services.ai.azure.com'
+output speechEndpoint string = 'https://${foundryName}.cognitiveservices.azure.com'
 output voiceLiveModel string = modelName
 output voiceLiveProfile string = voiceProfile
 output registryName string = registry.name
