@@ -1,5 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
+import logging
+import traceback
 
 import anyio
 from starlette.applications import Starlette
@@ -20,6 +22,8 @@ from .recording_contract import RecordingRequest
 from .speech import FastTranscription
 from .tools import ReadTools
 from .voice_tools import strict_arguments
+
+logger = logging.getLogger("recorder_proxy.processing")
 
 
 def create_app(settings=None, *, validator=None, provider_factory=None,
@@ -152,6 +156,10 @@ def create_app(settings=None, *, validator=None, provider_factory=None,
         except (TimeoutError, ClientDisconnect):
             return intelligence_error(unavailable())
         except IntelligenceError as exc:
+            origin = traceback.extract_tb(exc.__traceback__)[-1]
+            logger.warning("recording_request_failed operation=%s code=%s origin=%s:%d",
+                           "status" if request.url.path.endswith("/status") else "process",
+                           exc.code, origin.name, origin.lineno)
             return intelligence_error(exc)
         finally:
             processing_requests.discard(task)

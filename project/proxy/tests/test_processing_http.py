@@ -65,6 +65,25 @@ def test_sync_process_and_status_contract(api):
     assert len(service.calls) == 1
 
 
+def test_processing_failure_logs_origin_without_user_data(api, caplog):
+    client, body, key, claims, drive, service = api
+    drive.items["audio"]["remoteItem"] = {}
+    drive.items["audio"]["name"] = "PRIVATE_RECORDING_NAME.wav"
+    authorization = token(key, claims)
+    response = client.post("/v1/recordings/status", json=body,
+                           headers={"Authorization": authorization})
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "item_not_allowed"
+    messages = [record.getMessage() for record in caplog.records
+                if record.name == "recorder_proxy.processing"]
+    assert len(messages) == 1
+    assert "operation=status code=item_not_allowed origin=clean_item:" in messages[0]
+    assert authorization not in messages[0]
+    assert body["source_sha1"] not in messages[0]
+    assert "PRIVATE_RECORDING_NAME" not in messages[0]
+    assert not service.calls
+
+
 @pytest.mark.parametrize("change", [
     {"aud": "00000003-0000-0000-c000-000000000000"}, {"aud": "client-A"},
     {"azp": "wrong-client"}, {"oid": "wrong-user"}, {"tid": "arbitrary-tenant"},
