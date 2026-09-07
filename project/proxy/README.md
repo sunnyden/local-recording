@@ -147,6 +147,9 @@ configuration-acceptance test; there is no silent format/model fallback.
   race it with a second cancellation of an already-completed response.
   Missing clear acknowledgment is fatal after 2 seconds. New response creation
   is gated on truncation rather than racing an automatic service response.
+  A later audio item can wait up to 15 seconds for the prior item to finish
+  actual playback; no-progress credit still fails after the shorter 3-second
+  bound.
   A response-created event racing a new speech-start fails closed with
   `interruption_race` rather than emitting unwanted audio.
 * Separate microphone/provider/read/write tasks preserve full duplex.

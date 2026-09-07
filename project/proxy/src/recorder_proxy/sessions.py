@@ -210,13 +210,13 @@ class VoiceSession:
                     raise ProviderError()
                 return stream
         try:
-            async with asyncio.timeout(self.settings.output_queue_age_seconds):
+            async with asyncio.timeout(self.settings.playback_transition_seconds):
                 while any(not s.cleared and (not s.end_sent or s.played != s.produced)
                           for s in self.streams.values()):
                     self.progress_changed.clear()
                     await self.progress_changed.wait()
         except TimeoutError:
-            raise SessionError("playback_backlog", True) from None
+            raise SessionError("playback_transition_timeout", True) from None
         self._retire_streams()
         if len(self.streams) >= 4:
             raise SessionError("playback_backlog", True)
@@ -310,12 +310,12 @@ class VoiceSession:
             self.progress_changed.clear()
             remaining = self.settings.output_queue_age_seconds - (time.monotonic() - born)
             if remaining <= 0:
-                raise SessionError("playback_backlog", True)
+                raise SessionError("playback_credit_timeout", True)
             try:
                 async with asyncio.timeout(remaining):
                     await self.progress_changed.wait()
             except TimeoutError:
-                raise SessionError("playback_backlog", True) from None
+                raise SessionError("playback_credit_timeout", True) from None
             if stream.cleared:
                 return
         # Fill the board's complete bounded credit before real-time pacing.

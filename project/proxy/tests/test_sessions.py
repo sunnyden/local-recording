@@ -304,7 +304,7 @@ async def test_playback_backlog_is_bounded(settings, principal):
     sent = [Frame.parse(data, 2) for data in socket.history if isinstance(data, bytes)]
     assert sum(len(f.pcm) // 2 for f in sent) <= settings.max_unplayed_samples == 8000
     assert (await socket.until("error"))["code"] in (
-        "playback_backlog", "playback_stalled", "timeout", "queue_expired",
+        "playback_credit_timeout", "playback_stalled", "timeout", "queue_expired",
     )
     assert provider.closed
 
@@ -392,16 +392,16 @@ async def test_output_prefills_credit_then_paces(settings, principal):
     try:
         await provider.messages.put(Event("input_committed"))
         await provider.messages.put(Event("response_started", "r1"))
-        await provider.messages.put(Event("audio", "r1", "i1", 0, bytes(640 * 15)))
-        for _ in range(10):
+        await provider.messages.put(Event("audio", "r1", "i1", 0, bytes(640 * 20)))
+        for _ in range(15):
             await socket.until("audio")
-        assert timestamps[9] - timestamps[0] < 0.1
+        assert timestamps[14] - timestamps[0] < 0.1
         assert session.streams[1].sent == settings.startup_prefill_samples
         await socket.send(control("playback.progress", epoch=1, played_samples=1600))
         for _ in range(5):
             await socket.until("audio")
-        assert timestamps[14] - timestamps[10] >= 0.05
-        assert session.streams[1].sent == 4800
+        assert timestamps[19] - timestamps[15] >= 0.03
+        assert session.streams[1].sent == 6400
         await stop(socket, provider, session, task)
     finally:
         if not task.done():

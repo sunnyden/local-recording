@@ -50,6 +50,7 @@ class Settings:
     handshake_seconds: float = 15
     clear_timeout_seconds: float = 2
     playback_stall_seconds: float = 2
+    playback_transition_seconds: float = 15
 
     @classmethod
     def from_env(cls, env=None):
