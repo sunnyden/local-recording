@@ -92,10 +92,14 @@ async def graph(settings, principal):
     await http.aclose()
 
 
-async def test_scope_ancestry_and_download_no_cross_host_bearer(graph):
+@pytest.mark.parametrize("redirect", [
+    "https://unit.files.1drv.com/download?preauthenticated=yes",
+    "https://my.microsoftpersonalcontent.com/personal/fixture/download?tempauth=TEST_ONLY",
+])
+async def test_scope_ancestry_and_download_no_cross_host_bearer(graph, redirect):
     client, drive, _ = graph
     assert (await client.item("drive", "audio"))["id"] == "audio"
-    drive.redirect = "https://unit.files.1drv.com/download?preauthenticated=yes"
+    drive.redirect = redirect
     assert await client.download("drive", "audio", 4096) == drive.content["audio"]
     assert "authorization" not in drive.calls[-1].headers
     drive.add("outside", "local-recording-spoof", "root", folder=True)
@@ -110,6 +114,12 @@ async def test_scope_ancestry_and_download_no_cross_host_bearer(graph):
     "https://unit.files.1drv.com:444/a", "https://127.0.0.1/a",
     "https://graph.microsoft.com/v1.0/me", "//unit.files.1drv.com/a",
     "file:///private.wav", "https://unit.files.1drv.com/a#fragment",
+    "https://my.microsoftpersonalcontent.com.evil.test/a",
+    "https://evilmy.microsoftpersonalcontent.com/a",
+    "https://other.microsoftpersonalcontent.com/a",
+    "http://my.microsoftpersonalcontent.com/a",
+    "https://my.microsoftpersonalcontent.com:444/a",
+    "https://user:password@my.microsoftpersonalcontent.com/a",
 ])
 def test_redirect_allowlist(url):
     with pytest.raises(IntelligenceError):

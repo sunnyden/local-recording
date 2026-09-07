@@ -51,8 +51,13 @@ def api(settings, monkeypatch):
     assert not list(Path.cwd().glob(".recording-*.wav"))
 
 
-def test_sync_process_and_status_contract(api):
+@pytest.mark.parametrize("redirect", [
+    None,
+    "https://my.microsoftpersonalcontent.com/personal/fixture/download?tempauth=TEST_ONLY",
+])
+def test_sync_process_and_status_contract(api, redirect):
     client, body, key, claims, drive, service = api
+    drive.redirect = redirect
     headers = {"Authorization": token(key, claims)}
     status = client.post("/v1/recordings/status", json=body, headers=headers)
     assert status.status_code == 200 and status.json()["status"] == "not_started"

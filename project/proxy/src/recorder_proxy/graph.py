@@ -47,7 +47,8 @@ def download_url(url):
         host = parsed.hostname or ""
         allowed = (parsed.scheme == "https" and not parsed.username and not parsed.password
                    and parsed.port in (None, 443) and not parsed.fragment
-                   and host.endswith((".files.1drv.com", ".storage.live.com")))
+                   and (host == "my.microsoftpersonalcontent.com"
+                        or host.endswith((".files.1drv.com", ".storage.live.com"))))
     except ValueError:
         allowed = False
     if not allowed:

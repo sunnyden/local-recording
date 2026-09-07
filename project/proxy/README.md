@@ -233,8 +233,10 @@ root, then checks every item's actual parent-ID ancestry (maximum 32 hops).
 A textual path prefix is never authorization. Cross-drive references, remote
 items/shortcuts, symbolic-link facets, packages, arbitrary request URLs, and
 pagination outside the authorized collection are rejected. Downloads follow at
-most three redirects to approved personal OneDrive HTTPS download domains and
-never forward a Graph bearer to the download host. Expanding the configured
+most three redirects to approved personal OneDrive HTTPS download domains,
+including the exact `my.microsoftpersonalcontent.com` host used by current
+personal OneDrive downloads, and never forward a Graph bearer to the download
+host. Sibling and lookalike domains are not implicitly allowed. Expanding the configured
 root expands what the voice tools can read: treat it as a privileged change.
 
 ### Synchronous processing and recovery
