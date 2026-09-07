@@ -390,6 +390,106 @@ async def test_weather_shape_many_items_then_delayed_done(settings, principal):
     await stop(socket, provider, session, task)
 
 
+@pytest.mark.parametrize("rate", [16000, 24000])
+@pytest.mark.parametrize("delayed_tails", [False, True])
+async def test_repeated_deltas_and_delayed_done_preserve_audio(
+    settings, principal, rate, delayed_tails,
+):
+    import numpy as np
+    from recorder_proxy.audio import OutputAudio
+
+    provider = FakeProvider()
+    provider.sample_rate = rate
+    socket, provider, session, task = await start(settings, principal, provider)
+    reference = []
+    tails = []
+    try:
+        await provider.messages.put(Event("input_committed"))
+        await provider.messages.put(Event("response_started", "r1"))
+        for index in range(12):
+            converter = OutputAudio(rate)
+            pcm = (np.arange(1440, dtype=np.int16) + index * 1500).astype("<i2").tobytes()
+            for begin in range(0, len(pcm), 480):
+                chunk = pcm[begin:begin + 480]
+                reference.extend(converter.feed(chunk))
+                event = Event("audio", "r1", f"i{index}", 0, chunk)
+                if delayed_tails and begin == len(pcm) - 480:
+                    tails.append(event)
+                else:
+                    await provider.messages.put(event)
+            reference.extend(converter.feed(final=True))
+        for index in range(12):
+            if delayed_tails:
+                await provider.messages.put(tails[index])
+            await provider.messages.put(Event("audio_done", "r1", f"i{index}"))
+        await provider.messages.put(Event("response_done", "r1"))
+        received = bytearray()
+        while True:
+            async with asyncio.timeout(5):
+                message = await socket.outgoing.get()
+            if isinstance(message, bytes):
+                frame = Frame.parse(message, 2)
+                assert frame.epoch == 1
+                assert frame.position == len(received) // 2
+                received.extend(frame.pcm)
+                await socket.send(control("playback.progress", epoch=1,
+                                          played_samples=len(received) // 2))
+            else:
+                assert message["type"] != "error", message
+                if message["type"] == "playback.end":
+                    break
+        expected = b"".join(reference)
+        assert len(received) == len(expected)
+        np.testing.assert_allclose(np.frombuffer(received, dtype="<i2"),
+                                   np.frombuffer(expected, dtype="<i2"), atol=2, rtol=0)
+        assert len(session.streams[1].segments) == 12
+        assert all(segment.confirmed_done for segment in session.streams[1].segments)
+        assert not task.done()
+    finally:
+        await stop(socket, provider, session, task)
+
+
+async def test_future_item_buffer_limit_is_explicit(settings, principal):
+    session = VoiceSession(FakeSocket(), FakeProvider(), settings, principal)
+    stream = await session._stream(Event("audio", "r1", "i0"))
+    for _ in range(32):
+        await session._audio(stream, Event("audio", "r1", "i1", 0, bytes(65536)))
+    assert session.pending_audio_bytes == 2 * 1024 * 1024
+    with pytest.raises(SessionError) as failure:
+        await session._audio(stream, Event("audio", "r1", "i1", 0, bytes(2)))
+    assert failure.value.code == "provider_audio_limit"
+    assert session.pending_audio_bytes == 2 * 1024 * 1024
+
+
+async def test_audio_after_confirmed_item_done_is_rejected(settings, principal):
+    session = VoiceSession(FakeSocket(), FakeProvider(), settings, principal)
+    stream = await session._stream(Event("audio", "r1", "i0"))
+    await session._audio(stream, Event("audio", "r1", "i0", 0, bytes(640)))
+    await session._audio(stream, Event("audio_done", "r1", "i0"))
+    with pytest.raises(ProviderError):
+        await session._audio(stream, Event("audio", "r1", "i0", 0, bytes(640)))
+
+
+async def test_playback_after_provider_pause_gets_fresh_progress_deadline(settings, principal):
+    socket, provider, session, task = await start(settings, principal)
+    try:
+        await provider.messages.put(Event("input_committed"))
+        await provider.messages.put(Event("response_started", "r1"))
+        await provider.messages.put(Event("audio", "r1", "i1", 0, bytes(640)))
+        await socket.until("audio")
+        await socket.send(control("playback.progress", epoch=1, played_samples=320))
+        async with asyncio.timeout(1):
+            while session.streams[1].played != 320:
+                await asyncio.sleep(0)
+        session.streams[1].last_progress = time.monotonic() - 10
+        await provider.messages.put(Event("audio", "r1", "i1", 0, bytes(640)))
+        await socket.until("audio")
+        assert time.monotonic() - session.streams[1].last_progress < 1
+        assert not task.done()
+    finally:
+        await stop(socket, provider, session, task)
+
+
 async def test_fast_provider_with_paced_speaker_and_100ms_reports(settings, principal):
     socket, provider, session, task = await start(settings, principal)
     await provider.messages.put(Event("input_committed"))

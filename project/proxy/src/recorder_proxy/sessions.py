@@ -1,4 +1,5 @@
 import asyncio
+from collections import deque
 from contextlib import suppress
 from dataclasses import dataclass, field
 import logging
@@ -49,9 +50,10 @@ class TimedQueue:
 class AudioSegment:
     item_id: str
     content_index: int
-    start: int
+    start: int | None = None
     end: int | None = None
     confirmed_done: bool = False
+    pending: deque[bytes] = field(default_factory=deque)
 
 
 @dataclass
@@ -62,6 +64,9 @@ class Playback:
     audio_item_id: str = ""
     audio_content_index: int = 0
     segments: list[AudioSegment] = field(default_factory=list)
+    segment_cursor: int = 0
+    generation_done: bool = False
+    started: bool = False
     sequence: int = 0
     produced: int = 0
     sent: int = 0
@@ -97,6 +102,8 @@ class VoiceSession:
         self.response_lock = asyncio.Lock()
         self.discard_responses = {}
         self.progress_changed = asyncio.Event()
+        self.audio_changed = asyncio.Event()
+        self.pending_audio_bytes = 0
         self.started_at = time.monotonic()
         self.ready = False
         self.tasks = []
@@ -182,14 +189,18 @@ class VoiceSession:
             stream.last_progress = time.monotonic()
         stream.played = played
         self.progress_changed.set()
+        self.audio_changed.set()
         if data["type"] == "playback.cleared":
             if not stream.clear_sent:
                 raise ProtocolError("Unexpected clear acknowledgment")
             # Only the final actual DAC-consumed sample position is authoritative.
             if not stream.segments:
                 raise ProtocolError("Playback has no provider segment")
-            segment = stream.segments[-1]
-            for candidate in stream.segments:
+            available = [candidate for candidate in stream.segments if candidate.start is not None]
+            if not available:
+                raise ProtocolError("No emitted provider segment")
+            segment = available[-1]
+            for candidate in available:
                 boundary = candidate.end if candidate.end is not None else stream.produced
                 if played <= boundary:
                     segment = candidate
@@ -199,6 +210,8 @@ class VoiceSession:
             await self.provider.truncate(
                 segment.item_id, segment.content_index, relative_played,
             )
+            for later in stream.segments[stream.segments.index(segment) + 1:]:
+                await self.provider.truncate(later.item_id, later.content_index, 0)
             stream.acknowledged = True
             await self._maybe_respond()
 
@@ -229,78 +242,98 @@ class VoiceSession:
         for stream in self.streams.values():
             if stream.response_id == event.response_id:
                 return stream
-        try:
-            async with asyncio.timeout(self.settings.playback_transition_seconds):
-                while any(not s.cleared and (not s.end_sent or s.played != s.produced)
-                          for s in self.streams.values()):
-                    self.progress_changed.clear()
-                    await self.progress_changed.wait()
-        except TimeoutError:
-            raise SessionError("playback_transition_timeout", True) from None
         self._retire_streams()
         if len(self.streams) >= 4:
             raise SessionError("playback_backlog", True)
         self.epoch += 1
         stream = Playback(self.epoch, event.response_id)
         self.streams[stream.epoch] = stream
-        await self.emit("playback.start", epoch=stream.epoch)
-        await self.emit("state", state="speaking")
         return stream
 
     async def _emit_audio(self, stream, pcm, final=False):
         for packet in stream.audio.feed(pcm, final=final):
+            if stream.cleared:
+                return
             frame = Frame(2, stream.epoch, stream.sequence, stream.produced, packet)
             stream.sequence += 1
             stream.produced += len(packet) // 2
             await self.outbound.put(frame)
 
-    async def _finish_active_item(self, stream, confirmed=False):
+    async def _finish_active_item(self, stream):
         if stream.audio is None:
             return
         await self._emit_audio(stream, b"", final=True)
-        segment = stream.segments[-1]
+        segment = stream.segments[stream.segment_cursor]
         segment.end = stream.produced
-        segment.confirmed_done = confirmed
         stream.audio = None
         stream.audio_item_id = ""
 
     async def _audio(self, stream, event):
-        if stream.done:
+        if stream.generation_done:
             raise ProviderError()
         key = (event.item_id, event.content_index)
-        active = (stream.audio_item_id, stream.audio_content_index)
         segment = next((
             value for value in stream.segments
             if (value.item_id, value.content_index) == key
         ), None)
-        if event.type == "audio_done":
-            if stream.audio is not None and active == key:
-                await self._finish_active_item(stream, confirmed=True)
-            elif segment and segment.end is not None and not segment.confirmed_done:
-                segment.confirmed_done = True
-            else:
-                raise ProviderError()
-            return
-        if segment is not None:
-            # An item is contiguous on the wire; delayed done is allowed,
-            # returning to an already closed item is not.
+        if segment is None:
+            if len(stream.segments) >= 128:
+                raise SessionError("provider_item_limit")
+            segment = AudioSegment(event.item_id, event.content_index)
+            stream.segments.append(segment)
+        if segment.confirmed_done:
             raise ProviderError()
-        if stream.audio is not None:
-            await self._finish_active_item(stream)
-        stream.audio = OutputAudio(self.provider.sample_rate)
-        stream.audio_item_id = event.item_id
-        stream.audio_content_index = event.content_index
-        stream.segments.append(AudioSegment(
-            event.item_id, event.content_index, stream.produced,
-        ))
-        await self._emit_audio(stream, event.pcm)
+        if event.type == "audio_done":
+            segment.confirmed_done = True
+        else:
+            if self.pending_audio_bytes + len(event.pcm) > 2 * 1024 * 1024:
+                raise SessionError("provider_audio_limit", True)
+            segment.pending.append(event.pcm)
+            self.pending_audio_bytes += len(event.pcm)
+        self.audio_changed.set()
 
     async def _finish_response_audio(self, stream):
-        if stream.audio is not None:
-            await self._finish_active_item(stream)
-        if not stream.done:
-            stream.done = True
-            await self.emit("playback.end", epoch=stream.epoch)
+        stream.generation_done = True
+        for segment in stream.segments:
+            segment.confirmed_done = True
+        self.audio_changed.set()
+
+    async def audio_writer(self):
+        """Drain ordered items independently so delayed done never blocks ingress."""
+        while True:
+            self.audio_changed.clear()
+            for stream in list(self.streams.values()):
+                if stream.cleared or stream.done:
+                    continue
+                if any(not previous.cleared and
+                       (not previous.end_sent or previous.played != previous.produced)
+                       for previous in self.streams.values() if previous.epoch < stream.epoch):
+                    continue
+                if not stream.started:
+                    stream.segments[0].start = stream.produced
+                    stream.started = True
+                    await self.emit("playback.start", epoch=stream.epoch)
+                    await self.emit("state", state="speaking")
+                while stream.segment_cursor < len(stream.segments) and not stream.cleared:
+                    segment = stream.segments[stream.segment_cursor]
+                    if stream.audio is None:
+                        segment.start = stream.produced
+                        stream.audio = OutputAudio(self.provider.sample_rate)
+                        stream.audio_item_id = segment.item_id
+                        stream.audio_content_index = segment.content_index
+                    while segment.pending and not stream.cleared:
+                        chunk = segment.pending.popleft()
+                        self.pending_audio_bytes -= len(chunk)
+                        await self._emit_audio(stream, chunk)
+                    if stream.cleared or not segment.confirmed_done:
+                        break
+                    await self._finish_active_item(stream)
+                    stream.segment_cursor += 1
+                if (not stream.cleared and stream.generation_done and
+                        stream.segment_cursor == len(stream.segments)):
+                    stream.done = True
+                    await self.emit("playback.end", epoch=stream.epoch)
+            await self.audio_changed.wait()
 
     async def interrupt(self):
         self._retire_streams()
@@ -312,8 +345,17 @@ class VoiceSession:
                 continue
             self.discard_responses.setdefault(stream.response_id, None)
             stream.cleared = True
-            clearing.append(stream.epoch)
+            for segment in stream.segments:
+                self.pending_audio_bytes -= sum(map(len, segment.pending))
+                segment.pending.clear()
+            if stream.started:
+                clearing.append(stream.epoch)
+            else:
+                for segment in stream.segments:
+                    await self.provider.truncate(segment.item_id, segment.content_index, 0)
+                stream.acknowledged = True
         self.progress_changed.set()
+        self.audio_changed.set()
         for epoch in clearing:
             # Writer discards obsolete queued audio. It alone sends clear, preserving wire order.
             await self.emit("playback.clear", epoch=epoch)
@@ -395,7 +437,7 @@ class VoiceSession:
         if time.monotonic() - born > self.settings.output_queue_age_seconds:
             raise SessionError("queue_expired", True)
         stream.next_send_at = send_at + len(frame.pcm) / 32000
-        if stream.sent == 0:
+        if stream.sent == stream.played:
             stream.last_progress = time.monotonic()
         stream.sent += len(frame.pcm) // 2
         await self.socket.send_bytes(frame.encode())
@@ -417,6 +459,7 @@ class VoiceSession:
                 elif value["type"] == "playback.end":
                     stream.end_sent = True
                     self.progress_changed.set()
+                    self.audio_changed.set()
                 await self.socket.send_json(value)
 
     async def watchdog(self):
@@ -455,7 +498,7 @@ class VoiceSession:
             await self.handshake()
             self.tasks = [asyncio.create_task(coro()) for coro in (
                 self.device_reader, self.microphone_writer, self.provider_reader,
-                self.device_writer, self.watchdog,
+                self.audio_writer, self.device_writer, self.watchdog,
             )]
             done, _ = await asyncio.wait(self.tasks, return_when=asyncio.FIRST_COMPLETED)
             for task in done:

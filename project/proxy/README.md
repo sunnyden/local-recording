@@ -74,6 +74,20 @@ Use HTTPS-only ingress and disable external request/header/body logging.
 
 ## Voice Live boundary
 
+Audio ingestion and playback draining run independently. One response keeps one
+device epoch, with a separate ordered queue for each `(item_id, content_index)`.
+Repeated deltas continue the same resampler. Later items may arrive before earlier
+items finish, including late audio tails for earlier items; they remain buffered
+until the earlier item's actual `audio.done` event. A response completion flushes
+any remaining tail. Item switches alone never finalize audio.
+
+Pending item PCM is bounded to 2 MiB per session and 128 audio segments per
+response, in addition to the existing device and outbound queue limits. Exceeding
+these bounds returns an explicit error rather than dropping or reordering audio.
+On interruption, played samples map back to the affected provider item; later
+unheard segments are truncated to zero. The device's one-second capacity and
+500 ms prefill are unchanged.
+
 `providers.py` implements an explicit bounded **raw Voice Live WebSocket**
 adapter, not the Voice Live SDK and not the OpenAI GA Realtime schema.
 It connects to `/voice-live/realtime?api-version=2026-07-15&model=...`,
