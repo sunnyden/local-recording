@@ -7,6 +7,10 @@
 #include "esp_websocket_client.h"
 #include "esp_crt_bundle.h"
 #include "esp_timer.h"
+#include "esp_log.h"
+#ifndef RECORDER_HOST_TEST
+#include "esp_heap_caps.h"
+#endif
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -23,6 +27,10 @@ typedef struct {
     esp_websocket_client_handle_t ws;
     QueueHandle_t controls;
     QueueHandle_t microphone;
+#ifndef RECORDER_HOST_TEST
+    StaticQueue_t microphone_queue;
+    uint8_t *microphone_storage;
+#endif
     uint8_t message[4097];
     size_t used;
     int frame_offset;
@@ -35,7 +43,7 @@ typedef struct {
     int64_t deadline;
 } voice_session_t;
 
-#define MIC_QUEUE_FRAMES 25
+#define MIC_QUEUE_FRAMES 50
 
 voice_status_t voice_client_status(void)
 {
@@ -47,7 +55,8 @@ void voice_client_stop(void) { atomic_store(&stopping, true); }
 static void fail(esp_err_t err)
 {
     int expected = ESP_OK;
-    atomic_compare_exchange_strong(&error_code, &expected, err);
+    if (atomic_compare_exchange_strong(&error_code, &expected, err))
+        ESP_LOGE("voice", "Session stopping: %s", esp_err_to_name(err));
     atomic_store(&stopping, true);
 }
 static void queue_text(voice_session_t *s, const char *text)
@@ -236,7 +245,19 @@ static void conversation(void *unused)
     voice_session_t *s = calloc(1, sizeof(*s));
     if (s) atomic_store(&s->capture_done, true);
     if (s) s->controls = xQueueCreate(8, 160);
+#ifdef RECORDER_HOST_TEST
     if (s) s->microphone = xQueueCreate(MIC_QUEUE_FRAMES, PCM_BYTES);
+#else
+    if (s) {
+        s->microphone_storage = heap_caps_malloc(
+            MIC_QUEUE_FRAMES * PCM_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (s->microphone_storage) {
+            s->microphone = xQueueCreateStatic(
+                MIC_QUEUE_FRAMES, PCM_BYTES, s->microphone_storage,
+                &s->microphone_queue);
+        }
+    }
+#endif
     char *token = malloc(8193), *headers = malloc(8256);
     esp_err_t err = s && s->controls && s->microphone && token && headers ?
                     identity_access(AUTH_PROXY, false, token, 8193) : ESP_ERR_NO_MEM;
@@ -310,6 +331,12 @@ static void conversation(void *unused)
     if (headers) { secret_zero(headers, 8256); free(headers); }
     if (s && s->controls) vQueueDelete(s->controls);
     if (s && s->microphone) vQueueDelete(s->microphone);
+#ifndef RECORDER_HOST_TEST
+    if (s && s->microphone_storage) {
+        secret_zero(s->microphone_storage, MIC_QUEUE_FRAMES * PCM_BYTES);
+        heap_caps_free(s->microphone_storage);
+    }
+#endif
     free(s);
     atomic_store(&active, false);
     vTaskDelete(NULL);
