@@ -4,6 +4,7 @@ import json
 import logging
 import re
 import time
+import traceback
 
 from .graph import GraphClient, identifier
 from .intelligence_errors import IntelligenceError
@@ -84,6 +85,7 @@ class ReadTools:
 
     async def execute(self, name, arguments):
         budget, started = self.budget, time.monotonic()
+        origin = "none"
         safe_name = name if name in TOOL_NAMES else "unknown"
         if budget.calls_left <= 0:
             raise IntelligenceError("tool_limit", 429)
@@ -98,6 +100,8 @@ class ReadTools:
                     value = await self._execute(name, arguments, budget)
         except IntelligenceError as exc:
             value = {"error": exc.code, "retryable": exc.retryable}
+            origin = "/".join(f"{frame.name}:{frame.lineno}"
+                              for frame in traceback.extract_tb(exc.__traceback__)[-4:])
         except TimeoutError:
             value = {"error": "temporarily_unavailable", "retryable": True,
                      "message": "OneDrive lookup timed out. No result is available; explain the failure."}
@@ -109,9 +113,9 @@ class ReadTools:
             raise asyncio.CancelledError()
         output = self._bounded_output(value, budget)
         outcome = json.loads(output).get("error", "ok")
-        logger.warning("onedrive_tool_complete name=%s outcome=%s bytes=%d duration_ms=%d",
+        logger.warning("onedrive_tool_complete name=%s outcome=%s bytes=%d duration_ms=%d origin=%s",
                        safe_name, outcome, len(output.encode()),
-                       int((time.monotonic() - started) * 1000))
+                       int((time.monotonic() - started) * 1000), origin)
         return output
 
     @staticmethod

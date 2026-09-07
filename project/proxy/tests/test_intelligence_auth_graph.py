@@ -260,6 +260,47 @@ async def test_folder_content_search_escapes_odata_and_validates_hits(settings, 
             await fresh.search("drive", "folder", "budget")
 
 
+@pytest.mark.parametrize("projection", [
+    {"id": "audio"},
+    {"id": "audio", "name": "index-name", "file": {}, "folder": None,
+     "remoteItem": None, "package": None},
+    {"id": "audio", "name": "index-name", "parentReference": {"driveId": "INDEX-DRIVE"}},
+])
+async def test_search_uses_canonical_metadata_not_index_projection(settings, principal, projection):
+    drive = Drive()
+
+    async def handler(request):
+        if "/search(" in request.url.path:
+            return httpx.Response(200, json={"value": [projection]})
+        return await drive.handle(request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = GraphClient(settings, Tokens(), UserContext(principal, "B"), http=http)
+        result = await client.search("drive", "folder", "recording")
+        assert result == [drive.items["audio"]]
+        assert result[0]["name"] != projection.get("name")
+
+
+@pytest.mark.parametrize("change", [
+    {"remoteItem": {}},
+    {"parentReference": {"driveId": "other-drive", "id": "folder"}},
+    {"parentReference": {"driveId": "drive", "id": "root"}},
+])
+async def test_search_projection_cannot_override_authoritative_scope(settings, principal, change):
+    drive = Drive()
+    drive.items["audio"].update(change)
+
+    async def handler(request):
+        if "/search(" in request.url.path:
+            return httpx.Response(200, json={"value": [{"id": "audio"}]})
+        return await drive.handle(request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = GraphClient(settings, Tokens(), UserContext(principal, "B"), http=http)
+        with pytest.raises(IntelligenceError, match="item_not_allowed"):
+            await client.search("drive", "folder", "recording")
+
+
 async def test_search_next_page_cannot_change_search_root_or_query(settings, principal):
     drive = Drive()
 

@@ -218,8 +218,11 @@ class GraphClient:
                 raise unavailable()
             for hit in hits[:limit - scanned]:
                 scanned += 1
-                clean_item(hit, drive)
-                actual = await self.item(drive, hit["id"], within=parent)
+                if not isinstance(hit, dict):
+                    raise unavailable()
+                # Search projections are hints, not authoritative driveItem metadata.
+                # Resolve in the owned drive and validate the actual item and ancestry.
+                actual = await self.item(drive, identifier(hit.get("id")), within=parent)
                 if actual["id"] not in ids:
                     ids.add(actual["id"])
                     result.append(actual)
