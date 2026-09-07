@@ -335,8 +335,9 @@ async def test_multiple_audio_items_in_one_response_share_device_epoch(settings,
     await provider.messages.put(Event("input_committed"))
     await provider.messages.put(Event("response_started", "r1"))
     await provider.messages.put(Event("audio", "r1", "i1", 0, bytes(640)))
-    await provider.messages.put(Event("audio_done", "r1", "i1"))
     await provider.messages.put(Event("audio", "r1", "i2", 0, bytes(640)))
+    # Voice Live can delay all item done events until after later item audio.
+    await provider.messages.put(Event("audio_done", "r1", "i1"))
     await provider.messages.put(Event("audio_done", "r1", "i2"))
     await provider.messages.put(Event("response_done", "r1"))
     first = await socket.until("audio")
@@ -356,7 +357,8 @@ async def test_multi_item_clear_maps_played_position_to_provider_item(settings, 
     await provider.messages.put(Event("response_started", "r1"))
     for item in ("i1", "i2"):
         await provider.messages.put(Event("audio", "r1", item, 0, bytes(640)))
-        await provider.messages.put(Event("audio_done", "r1", item))
+    await provider.messages.put(Event("audio_done", "r1", "i1"))
+    await provider.messages.put(Event("audio_done", "r1", "i2"))
     await socket.until("audio")
     await socket.until("audio")
     await provider.messages.put(Event("speech_started"))
@@ -366,6 +368,25 @@ async def test_multi_item_clear_maps_played_position_to_provider_item(settings, 
         while not provider.truncations:
             await asyncio.sleep(0)
     assert provider.truncations == [("i2", 0, 80)]
+    await stop(socket, provider, session, task)
+
+
+async def test_weather_shape_many_items_then_delayed_done(settings, principal):
+    socket, provider, session, task = await start(settings, principal)
+    await provider.messages.put(Event("input_committed"))
+    await provider.messages.put(Event("response_started", "weather"))
+    items = [f"item-{index}" for index in range(12)]
+    for item in items:
+        await provider.messages.put(Event("audio", "weather", item, 0, bytes(640)))
+    for item in items:
+        await provider.messages.put(Event("audio_done", "weather", item))
+    await provider.messages.put(Event("response_done", "weather"))
+    frames = [await socket.until("audio") for _ in items]
+    assert {frame.epoch for frame in frames} == {1}
+    assert [frame.sequence for frame in frames] == list(range(12))
+    assert (await socket.until("playback.end"))["epoch"] == 1
+    await socket.send(control("playback.progress", epoch=1, played_samples=3840))
+    assert not task.done()
     await stop(socket, provider, session, task)
 
 

@@ -10,7 +10,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from .audio import AudioError, OutputAudio
 from .protocol import Frame, ProtocolError, Sequence, control, parse_control
-from .providers import Event, ProviderError
+from .providers import ProviderError
 
 logger = logging.getLogger("recorder_proxy.session")
 
@@ -51,6 +51,7 @@ class AudioSegment:
     content_index: int
     start: int
     end: int | None = None
+    confirmed_done: bool = False
 
 
 @dataclass
@@ -246,38 +247,57 @@ class VoiceSession:
         await self.emit("state", state="speaking")
         return stream
 
-    async def _audio(self, stream, event):
-        if stream.done:
-            raise ProviderError()
-        if stream.audio is None:
-            stream.audio = OutputAudio(self.provider.sample_rate)
-            stream.audio_item_id = event.item_id
-            stream.audio_content_index = event.content_index
-            stream.segments.append(AudioSegment(
-                event.item_id, event.content_index, stream.produced,
-            ))
-        elif (stream.audio_item_id, stream.audio_content_index) != (
-            event.item_id, event.content_index,
-        ):
-            raise ProviderError()
-        final = event.type == "audio_done"
-        for packet in stream.audio.feed(event.pcm, final=final):
+    async def _emit_audio(self, stream, pcm, final=False):
+        for packet in stream.audio.feed(pcm, final=final):
             frame = Frame(2, stream.epoch, stream.sequence, stream.produced, packet)
             stream.sequence += 1
             stream.produced += len(packet) // 2
             await self.outbound.put(frame)
-        if final:
-            stream.segments[-1].end = stream.produced
-            stream.audio = None
-            stream.audio_item_id = ""
+
+    async def _finish_active_item(self, stream, confirmed=False):
+        if stream.audio is None:
+            return
+        await self._emit_audio(stream, b"", final=True)
+        segment = stream.segments[-1]
+        segment.end = stream.produced
+        segment.confirmed_done = confirmed
+        stream.audio = None
+        stream.audio_item_id = ""
+
+    async def _audio(self, stream, event):
+        if stream.done:
+            raise ProviderError()
+        key = (event.item_id, event.content_index)
+        active = (stream.audio_item_id, stream.audio_content_index)
+        segment = next((
+            value for value in stream.segments
+            if (value.item_id, value.content_index) == key
+        ), None)
+        if event.type == "audio_done":
+            if stream.audio is not None and active == key:
+                await self._finish_active_item(stream, confirmed=True)
+            elif segment and segment.end is not None and not segment.confirmed_done:
+                segment.confirmed_done = True
+            else:
+                raise ProviderError()
+            return
+        if segment is not None:
+            # An item is contiguous on the wire; delayed done is allowed,
+            # returning to an already closed item is not.
+            raise ProviderError()
+        if stream.audio is not None:
+            await self._finish_active_item(stream)
+        stream.audio = OutputAudio(self.provider.sample_rate)
+        stream.audio_item_id = event.item_id
+        stream.audio_content_index = event.content_index
+        stream.segments.append(AudioSegment(
+            event.item_id, event.content_index, stream.produced,
+        ))
+        await self._emit_audio(stream, event.pcm)
 
     async def _finish_response_audio(self, stream):
         if stream.audio is not None:
-            event = Event(
-                "audio_done", stream.response_id, stream.audio_item_id,
-                stream.audio_content_index,
-            )
-            await self._audio(stream, event)
+            await self._finish_active_item(stream)
         if not stream.done:
             stream.done = True
             await self.emit("playback.end", epoch=stream.epoch)
