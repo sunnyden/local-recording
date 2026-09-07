@@ -52,7 +52,7 @@ jobs:
       GRAPH_ROOT_PATH: ${{ vars.GRAPH_ROOT_PATH || 'local-recording' }}
       SPEECH_ENDPOINT: ${{ vars.SPEECH_ENDPOINT }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Validate workflow syntax
         uses: rhysd/actionlint@v1.7.12
@@ -107,7 +107,7 @@ jobs:
           az bicep lint --file project/infra/bicep/proxy.bicep
 
       - name: Azure login with OIDC
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ env.AZURE_CLIENT_ID }}
           tenant-id: ${{ env.AZURE_TENANT_ID }}
@@ -127,7 +127,7 @@ jobs:
             echo "build=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
         if: steps.mode.outputs.build == 'true'
 
       - name: Log in to private ACR
@@ -136,7 +136,7 @@ jobs:
 
       - name: Build and push proxy
         if: steps.mode.outputs.build == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: project/proxy
           push: true
