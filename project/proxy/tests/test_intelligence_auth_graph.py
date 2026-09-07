@@ -116,6 +116,15 @@ def test_redirect_allowlist(url):
         download_url(url)
 
 
+def test_redirect_rejection_logs_only_host(caplog):
+    with pytest.raises(IntelligenceError):
+        download_url("https://new.microsoft-host.example/download/PRIVATE_PATH?token=PRIVATE_CAPABILITY")
+    messages = [record.getMessage() for record in caplog.records
+                if record.name == "recorder_proxy.graph"]
+    assert messages == ["onedrive_download_origin_rejected host=new.microsoft-host.example"]
+    assert "PRIVATE" not in messages[0]
+
+
 @pytest.mark.parametrize("value", ["a/b", "..", "https://evil", "", 1, "a?b", "a%2fb", "a\\b"])
 def test_ids_are_not_urls_or_paths(value):
     with pytest.raises(IntelligenceError):

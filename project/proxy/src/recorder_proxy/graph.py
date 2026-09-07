@@ -1,4 +1,6 @@
 from urllib.parse import quote, urlsplit
+import logging
+import re
 
 import httpx
 
@@ -7,6 +9,7 @@ from .intelligence_errors import IntelligenceError, check_response, http_client,
 GRAPH = "https://graph.microsoft.com/v1.0"
 FIELDS = ("id,name,size,eTag,cTag,file,folder,parentReference,remoteItem,"
           "lastModifiedDateTime,createdDateTime,package")
+logger = logging.getLogger("recorder_proxy.graph")
 
 
 def identifier(value):
@@ -38,6 +41,7 @@ def clean_item(item, drive=None):
 
 
 def download_url(url):
+    host = ""
     try:
         parsed = urlsplit(url)
         host = parsed.hostname or ""
@@ -47,6 +51,8 @@ def download_url(url):
     except ValueError:
         allowed = False
     if not allowed:
+        safe_host = host if re.fullmatch(r"[a-z0-9.-]{1,253}", host) else "invalid"
+        logger.warning("onedrive_download_origin_rejected host=%s", safe_host)
         raise IntelligenceError("item_not_allowed", 403)
     return url
 
