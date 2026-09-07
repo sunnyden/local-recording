@@ -1,0 +1,10 @@
+# User confirmed the factory/reference firmware drives this board's LCD.
+# Build-only local bring-up profile; flashing remains parent-coordinated.
+CONFIG_RECORDER_SPI_LCD_CONFIRMED=y
+# CONFIG_RECORDER_DEVELOPMENT_CREDENTIAL_RISK is not set
+# CONFIG_RECORDER_NVS_HMAC_EXISTING is not set
+# CONFIG_NVS_ENCRYPTION is not set
+# CONFIG_SECURE_FLASH_ENC_ENABLED is not set
+# CONFIG_SECURE_BOOT is not set
+# CONFIG_RECORDER_TEST_FORMAT_SD_ON_MOUNT_FAILURE is not set
+CONFIG_RECORDER_PROXY_URL=""

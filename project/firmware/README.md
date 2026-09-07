@@ -20,9 +20,11 @@ identification commands on **COM3**, the parent reported:
 | Mutations/access | No flash writes/erase, eFuse writes, or credential reads |
 
 ROM identification confirms reported capacities, not successful PSRAM runtime
-initialization at the configured octal/80 MHz setting. Physical LCD/P5 jumper
-approval, microphone/speaker operation, and acoustics remain unverified.
-The parent will not flash an application without physical-jumper approval.
+initialization at the configured octal/80 MHz setting. The user subsequently
+confirmed that the supplied factory/reference firmware drives the LCD, satisfying
+the LCD routing gate for local bring-up on this board. Our display driver,
+microphone/speaker operation, and acoustics still need application-level checks.
+The parent coordinates rollback-safe local-only flashing; credentials remain off.
 
 ## Build and tests
 
@@ -30,6 +32,20 @@ The parent will not flash an application without physical-jumper approval.
 .\tools\build.ps1
 .\tools\test-core.ps1
 ```
+
+For the user-confirmed LCD board, build the isolated local-only image with:
+
+```powershell
+.\tools\build.ps1 -Profile local-bringup
+```
+
+It writes `build-local-bringup\embedded_recorder.bin` with LCD enabled but both
+credential profiles, NVS encryption, secure boot, and flash-encryption enablement
+disabled. The helper verifies those gates after compilation. It does not flash,
+open a serial port, format SD, or provision keys. The generic and credential-
+enabled build configurations are not reused. The optional existing-key profile can be compiled separately with
+`.\tools\build.ps1 -Profile hmac-validation`; that image is not the local-only
+handoff image.
 
 The build script activates the existing installation at
 `C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1`; override
@@ -90,7 +106,7 @@ cover:
   wire fixture is consumed directly, valid decoded fields/signed samples are
   checked, and encoder output must match the canonical bytes exactly.
 * The production I2S implementation with simulated DMA callbacks: a fixed
-  25-frame ring and combined 8000-sample software/DMA budget; moving samples
+  50-frame ring and combined 16000-sample software/DMA budget; moving samples
   into DMA does not return credit, only completed samples free capacity, clear
   zeros pending DMA, short tails count exactly, and stereo/mono slot conversion
   is preserved.
@@ -222,13 +238,14 @@ longer or date-form retry values stop the attempt rather than retry early.
 Session expiry, consent/quota errors, and unsupported reconciliation require a
 new explicit Sync attempt. This is not an unlimited background retry service.
 
-The v1 voice contract uses a hard **8000 samples / 500 ms outstanding** limit,
-a fixed 25-frame internal ring, four 20 ms DMA periods, and a 300 ms initial
-prefill followed by PCM-rate proxy pacing. A separate pending
-counter includes **both software and DMA**, so moving a frame into DMA does not
-return playback credit. Internal memory is required because the ISR accesses
-this ring; no allocation occurs per packet. Normal latency still needs hardware
-measurement; DMA priming and network delays affect wall-clock latency.
+The v1 voice contract uses a hard **16000 samples / one second outstanding**
+limit with a 500 ms startup prefill, then PCM-rate proxy pacing. The software
+ring allocates **50 mono frames (32 KB)** so a delayed TCP delivery can release
+the legal credit before DMA refills. Four 20 ms DMA periods are allocated
+separately, while the pending counter includes **both software and DMA** and
+still enforces 16000 samples. Moving a frame into DMA returns no playback
+credit; only completion does. Internal memory is required because the ISR
+accesses this ring; no allocation occurs per packet.
 Overflow beyond either the software-ring or total budget cancels the session. Progress
 is sent every four microphone frames (nominally 80 ms) and counts completed DMA
 samples, never socket/queue writes. The proxy must limit its outstanding window
@@ -246,7 +263,8 @@ downgrade to half-duplex or substitute a model.
 ## Validation status and next gates
 
 See [validation record](docs/validation.md). Compilation and portable tests
-passed. BLE/WinRT interoperability, actual flash/PSRAM, LCD jumper state,
+passed. Factory/reference LCD operation is user-confirmed for local bring-up.
+BLE/WinRT interoperability, runtime PSRAM and this application's LCD operation,
 microphone channel/gain, speaker polarity/acoustics, SD power interruption,
 personal-account consent, OneDrive byte equality and replay/reconciliation,
 and fake/live proxy integration have **not** been exercised on hardware.

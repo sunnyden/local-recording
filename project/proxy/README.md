@@ -127,8 +127,8 @@ configuration-acceptance test; there is no silent format/model fallback.
   These bounds deliberately stop overloaded sessions instead of accumulating
   arbitrary delayed audio. The 32 most recent interrupted response IDs are
   retained to discard late deltas; older unexpected IDs fail closed.
-* No more than 8000 samples (500 ms, 25 nominal frames) are sent but
-  unreported as played. The proxy initially prefills 300 ms, then paces at
+* No more than 16000 samples (one second, 50 nominal frames) are sent but
+  unreported as played. The proxy initially prefills 500 ms, then paces at
   16 kHz with no more than 60 ms catch-up. This covers Wi-Fi jitter, the
   four-period DMA residence, and the firmware's 80 ms progress batching.
   Device progress must report **actual speaker-consumed** samples every four
@@ -169,8 +169,8 @@ A fuller live `VoiceSession` diagnostic streamed paced, locally synthesized
 16 kHz microphone PCM while consuming returned audio at real-time speed.
 After the initial output-queue correction, a ten-frame simulated speaker with
 100 ms played-progress batches completed 40,800 output samples without errors.
-That cloud run preceded physical-board tuning. The final 500 ms hard credit,
-300 ms prefill, and nominal 60 ms catch-up pass paced-speaker/session regressions
+That cloud run preceded physical-board tuning. The final one-second hard credit,
+500 ms prefill, and nominal 60 ms catch-up pass paced-speaker/session regressions
 and the shared four-period DMA simulator without interior gaps.
 The original 33-record output queue reproduced a normal-playback
 `playback_backlog` failure; a regression now exercises an immediately produced

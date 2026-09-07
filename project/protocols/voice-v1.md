@@ -65,11 +65,11 @@ that position to reconcile the provider conversation on interruption. Late
 frames for that epoch are discarded. A subsequent `playback.start` uses a new
 epoch and restarts sequence/sample position at zero.
 
-The v1 device hard budget is 8000 sent-but-unreported samples (500 ms). The
-proxy initially prefills 4800 samples (300 ms), then paces PCM at 16000
-samples/second with catch-up bursts no larger than 60 ms. The fixed 25-frame
+The v1 device hard budget is 16000 sent-but-unreported samples (one second).
+The proxy initially prefills 8000 samples (500 ms), then paces PCM at 16000
+samples/second with catch-up bursts no larger than 60 ms. The fixed 50-frame
 software ring can absorb a coalesced TCP delivery; combined software/DMA
-accounting still enforces the 500 ms hard bound.
+accounting still enforces the one-second hard bound.
 Report progress at least every 100 ms and immediately after final playback
 drain. A normal next epoch starts only after the previous epoch's end and final
 played progress; an explicitly acknowledged clear is the interruption exception.

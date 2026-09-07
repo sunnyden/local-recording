@@ -101,7 +101,8 @@ int main(void)
     assert(audio_voice_epoch(1) == ESP_OK && speaker);
     int16_t pcm[PCM_SAMPLES];
     for (unsigned i = 0; i < PCM_SAMPLES; ++i) pcm[i] = 123;
-    for (unsigned i = 0; i < 25; ++i) assert(audio_voice_enqueue(1, pcm, PCM_SAMPLES) == ESP_OK);
+    for (unsigned i = 0; i < 50; ++i) assert(audio_voice_enqueue(1, pcm, PCM_SAMPLES) == ESP_OK);
+    assert(audio_voice_enqueue(1, pcm, PCM_SAMPLES) == ESP_ERR_NO_MEM);
     assert(audio_voice_enqueue(1, pcm, 1) == ESP_ERR_NO_MEM);
     assert(audio_voice_played(1) == 0);
     for (unsigned i = 0; i < 4; ++i) dma_complete();
@@ -128,12 +129,13 @@ int main(void)
     assert(audio_start(false, true) == ESP_OK && speaker);
     assert(audio_write(pcm, PCM_SAMPLES) == ESP_OK);
     assert(audio_stop() == ESP_OK);
-    unsigned gaps_100ms = simulate_credit(1600, 1600, 3);
-    unsigned gaps_500ms = simulate_credit(8000, 4800, 4);
+    unsigned gaps_100ms = simulate_credit(1600, 960, 3);
+    unsigned gaps_1s = simulate_credit(16000, 8000, 4);
+    unsigned gaps_coalesced = simulate_credit(16000, 16000, 5);
     assert(gaps_100ms > 0);
-    assert(gaps_500ms == 0);
-    printf("DMA timing model: 100ms credit=%u empty steady-state periods; 500ms credit=%u\n",
-           gaps_100ms, gaps_500ms);
-    puts("PASS: actual I2S 300ms prefill/combined 500ms cap, clear and short tails");
+    assert(gaps_1s == 0 && gaps_coalesced == 0);
+    printf("DMA timing model: 100ms credit=%u empty steady-state periods; 1s credit=%u; coalesced=%u\n",
+           gaps_100ms, gaps_1s, gaps_coalesced);
+    puts("PASS: actual I2S one-second hard ring, 500ms prefill, clear and short tails");
     return 0;
 }

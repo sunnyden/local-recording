@@ -27,8 +27,11 @@ CT_INT/GPIO40. The firmware holds CT_RST low and does not install GPIO40 IRQs.
 Polling keys alone would not resolve a physical short.
 
 The reference `XL9555_INT_IO GPIO_NUM_40` declaration is therefore not used.
-Physical jumper position still needs owner verification. Default firmware leaves
-GPIO40 untouched and reports the gate via UART.
+The user subsequently confirmed working LCD output with the supplied factory/
+reference firmware on this board. The coordinator accepts this as LCD routing
+confirmation for local bring-up; it is not a claim that every P5 jumper was
+visually inspected. The generic default profile still leaves GPIO40 untouched;
+`-Profile local-bringup` enables it for this confirmed board with credentials off.
 
 ## Implemented pin map
 
@@ -72,9 +75,10 @@ writes, erase, eFuse writes, or credential reads. The firmware implementation
 agent did not independently open COM3.
 
 This establishes ROM-reported capacities only. Runtime PSRAM initialization,
-octal/80 MHz compatibility, the physical LCD/P5 jumper state, and microphone/
-speaker/acoustic operation have not been verified. Application flashing remains
-blocked pending physical-jumper approval.
+octal/80 MHz compatibility, our LCD driver, and microphone/speaker/acoustic
+operation still need verification. The later factory/reference LCD confirmation
+satisfies the coordinator's routing gate. Application flashing remains a parent-
+coordinated rollback-safe local-only operation, not something this build runs.
 
 ## Owner-coordinated next steps
 

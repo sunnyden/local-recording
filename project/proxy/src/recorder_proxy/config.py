@@ -42,11 +42,11 @@ class Settings:
     profile: str
     max_session_seconds: int = 900
     queue_frames: int = 25
-    output_queue_frames: int = 35
-    max_unplayed_samples: int = 8000
+    output_queue_frames: int = 60
+    max_unplayed_samples: int = 16000
     queue_age_seconds: float = 0.5
     output_queue_age_seconds: float = 3
-    startup_prefill_samples: int = 4800
+    startup_prefill_samples: int = 8000
     handshake_seconds: float = 15
     clear_timeout_seconds: float = 2
     playback_stall_seconds: float = 2

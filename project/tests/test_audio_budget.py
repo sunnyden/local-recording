@@ -54,11 +54,11 @@ def test_production_credit_preserves_continuous_dma_playback():
     played, gaps, peak = simulate(Settings.max_unplayed_samples)
     assert played == 100
     assert gaps == 0, "Credit must cover DMA residence plus the 80 ms played-progress delay."
-    assert peak <= 25, "Traffic must fit the fixed 25-frame software ring."
+    assert peak <= 50, "Traffic must fit the fixed 50-frame software ring."
 
 
 def test_tcp_coalescing_can_deliver_the_entire_advertised_credit():
     played, gaps, peak = simulate(Settings.max_unplayed_samples, delivery_delay_ticks=8)
     assert played == 100
     assert gaps == 0
-    assert peak <= 25, "A delayed TCP segment must fit the full fixed device ring."
+    assert peak <= 50, "A delayed TCP segment must fit the full fixed device ring."

@@ -10,7 +10,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from .audio import AudioError, OutputAudio
 from .protocol import Frame, ProtocolError, Sequence, control, parse_control
-from .providers import ProviderError
+from .providers import Event, ProviderError
 
 logger = logging.getLogger("recorder_proxy.session")
 
@@ -46,12 +46,21 @@ class TimedQueue:
 
 
 @dataclass
+class AudioSegment:
+    item_id: str
+    content_index: int
+    start: int
+    end: int | None = None
+
+
+@dataclass
 class Playback:
     epoch: int
     response_id: str
-    item_id: str
-    content_index: int
-    audio: OutputAudio
+    audio: OutputAudio | None = None
+    audio_item_id: str = ""
+    audio_content_index: int = 0
+    segments: list[AudioSegment] = field(default_factory=list)
     sequence: int = 0
     produced: int = 0
     sent: int = 0
@@ -176,7 +185,19 @@ class VoiceSession:
             if not stream.clear_sent:
                 raise ProtocolError("Unexpected clear acknowledgment")
             # Only the final actual DAC-consumed sample position is authoritative.
-            await self.provider.truncate(stream.item_id, stream.content_index, played)
+            if not stream.segments:
+                raise ProtocolError("Playback has no provider segment")
+            segment = stream.segments[-1]
+            for candidate in stream.segments:
+                boundary = candidate.end if candidate.end is not None else stream.produced
+                if played <= boundary:
+                    segment = candidate
+                    break
+            boundary = segment.end if segment.end is not None else stream.produced
+            relative_played = max(0, min(played, boundary) - segment.start)
+            await self.provider.truncate(
+                segment.item_id, segment.content_index, relative_played,
+            )
             stream.acknowledged = True
             await self._maybe_respond()
 
@@ -205,9 +226,7 @@ class VoiceSession:
 
     async def _stream(self, event):
         for stream in self.streams.values():
-            if (stream.item_id, stream.content_index) == (event.item_id, event.content_index):
-                if stream.response_id != event.response_id:
-                    raise ProviderError()
+            if stream.response_id == event.response_id:
                 return stream
         try:
             async with asyncio.timeout(self.settings.playback_transition_seconds):
@@ -221,20 +240,45 @@ class VoiceSession:
         if len(self.streams) >= 4:
             raise SessionError("playback_backlog", True)
         self.epoch += 1
-        stream = Playback(self.epoch, event.response_id, event.item_id, event.content_index,
-                          OutputAudio(self.provider.sample_rate))
+        stream = Playback(self.epoch, event.response_id)
         self.streams[stream.epoch] = stream
         await self.emit("playback.start", epoch=stream.epoch)
         await self.emit("state", state="speaking")
         return stream
 
-    async def _audio(self, stream, pcm=b"", final=False):
-        for packet in stream.audio.feed(pcm, final=final):
+    async def _audio(self, stream, event):
+        if stream.done:
+            raise ProviderError()
+        if stream.audio is None:
+            stream.audio = OutputAudio(self.provider.sample_rate)
+            stream.audio_item_id = event.item_id
+            stream.audio_content_index = event.content_index
+            stream.segments.append(AudioSegment(
+                event.item_id, event.content_index, stream.produced,
+            ))
+        elif (stream.audio_item_id, stream.audio_content_index) != (
+            event.item_id, event.content_index,
+        ):
+            raise ProviderError()
+        final = event.type == "audio_done"
+        for packet in stream.audio.feed(event.pcm, final=final):
             frame = Frame(2, stream.epoch, stream.sequence, stream.produced, packet)
             stream.sequence += 1
             stream.produced += len(packet) // 2
             await self.outbound.put(frame)
         if final:
+            stream.segments[-1].end = stream.produced
+            stream.audio = None
+            stream.audio_item_id = ""
+
+    async def _finish_response_audio(self, stream):
+        if stream.audio is not None:
+            event = Event(
+                "audio_done", stream.response_id, stream.audio_item_id,
+                stream.audio_content_index,
+            )
+            await self._audio(stream, event)
+        if not stream.done:
             stream.done = True
             await self.emit("playback.end", epoch=stream.epoch)
 
@@ -284,15 +328,13 @@ class VoiceSession:
                 stream = await self._stream(event)
                 if stream.cleared:
                     continue
-                if stream.done:
-                    raise ProviderError()
-                await self._audio(stream, event.pcm, final=event.type == "audio_done")
+                await self._audio(stream, event)
             elif event.type == "response_done":
                 if event.response_id != self.current_response:
                     raise ProviderError()
                 for stream in list(self.streams.values()):
-                    if stream.response_id == event.response_id and not stream.cleared and not stream.done:
-                        await self._audio(stream, final=True)
+                    if stream.response_id == event.response_id and not stream.cleared:
+                        await self._finish_response_audio(stream)
                 self.current_response = None
                 # Recent canceled IDs discard late audio; older unknown IDs fail closed.
                 await self.emit("state", state="listening")

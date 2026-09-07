@@ -302,7 +302,7 @@ async def test_playback_backlog_is_bounded(settings, principal):
     await provider.messages.put(Event("audio", "r1", "i1", 0, bytes(32000)))
     await asyncio.wait_for(task, 3)
     sent = [Frame.parse(data, 2) for data in socket.history if isinstance(data, bytes)]
-    assert sum(len(f.pcm) // 2 for f in sent) <= settings.max_unplayed_samples == 8000
+    assert sum(len(f.pcm) // 2 for f in sent) <= settings.max_unplayed_samples == 16000
     assert (await socket.until("error"))["code"] in (
         "playback_credit_timeout", "playback_stalled", "timeout", "queue_expired",
     )
@@ -330,19 +330,42 @@ async def test_response_creation_waits_for_final_clear_and_truncate(settings, pr
     await stop(socket, provider, session, task)
 
 
-async def test_next_normal_epoch_waits_for_previous_speaker_drain(settings, principal):
+async def test_multiple_audio_items_in_one_response_share_device_epoch(settings, principal):
     socket, provider, session, task = await start(settings, principal)
     await provider.messages.put(Event("input_committed"))
     await provider.messages.put(Event("response_started", "r1"))
     await provider.messages.put(Event("audio", "r1", "i1", 0, bytes(640)))
     await provider.messages.put(Event("audio_done", "r1", "i1"))
-    await socket.until("playback.end")
     await provider.messages.put(Event("audio", "r1", "i2", 0, bytes(640)))
-    await asyncio.sleep(0.02)
-    assert len([d for d in socket.history if isinstance(d, dict) and d["type"] == "playback.start"]) == 1
-    await socket.send(control("playback.progress", epoch=1, played_samples=320))
-    assert (await socket.until("playback.start"))["epoch"] == 2
-    await socket.send(control("playback.progress", epoch=1, played_samples=320))
+    await provider.messages.put(Event("audio_done", "r1", "i2"))
+    await provider.messages.put(Event("response_done", "r1"))
+    first = await socket.until("audio")
+    second = await socket.until("audio")
+    assert (first.epoch, first.sequence, first.position) == (1, 0, 0)
+    assert (second.epoch, second.sequence, second.position) == (1, 1, 320)
+    assert (await socket.until("playback.end"))["epoch"] == 1
+    starts = [d for d in socket.history if isinstance(d, dict) and d["type"] == "playback.start"]
+    assert len(starts) == 1
+    await socket.send(control("playback.progress", epoch=1, played_samples=640))
+    await stop(socket, provider, session, task)
+
+
+async def test_multi_item_clear_maps_played_position_to_provider_item(settings, principal):
+    socket, provider, session, task = await start(settings, principal)
+    await provider.messages.put(Event("input_committed"))
+    await provider.messages.put(Event("response_started", "r1"))
+    for item in ("i1", "i2"):
+        await provider.messages.put(Event("audio", "r1", item, 0, bytes(640)))
+        await provider.messages.put(Event("audio_done", "r1", item))
+    await socket.until("audio")
+    await socket.until("audio")
+    await provider.messages.put(Event("speech_started"))
+    await socket.until("playback.clear")
+    await socket.send(control("playback.cleared", epoch=1, played_samples=400))
+    async with asyncio.timeout(1):
+        while not provider.truncations:
+            await asyncio.sleep(0)
+    assert provider.truncations == [("i2", 0, 80)]
     await stop(socket, provider, session, task)
 
 
@@ -363,7 +386,7 @@ async def test_fast_provider_with_paced_speaker_and_100ms_reports(settings, prin
                     continue
                 frame = Frame.parse(message, 2)
                 assert (session.streams[frame.epoch].sent - session.streams[frame.epoch].played
-                        <= settings.max_unplayed_samples == 8000)
+                        <= settings.max_unplayed_samples == 16000)
                 samples = len(frame.pcm) // 2
                 deadline += samples / 16000
                 await asyncio.sleep(max(0, deadline - time.monotonic()))
@@ -392,16 +415,16 @@ async def test_output_prefills_credit_then_paces(settings, principal):
     try:
         await provider.messages.put(Event("input_committed"))
         await provider.messages.put(Event("response_started", "r1"))
-        await provider.messages.put(Event("audio", "r1", "i1", 0, bytes(640 * 20)))
-        for _ in range(15):
+        await provider.messages.put(Event("audio", "r1", "i1", 0, bytes(640 * 30)))
+        for _ in range(25):
             await socket.until("audio")
-        assert timestamps[14] - timestamps[0] < 0.1
+        assert timestamps[24] - timestamps[0] < 0.1
         assert session.streams[1].sent == settings.startup_prefill_samples
         await socket.send(control("playback.progress", epoch=1, played_samples=1600))
         for _ in range(5):
             await socket.until("audio")
-        assert timestamps[19] - timestamps[15] >= 0.03
-        assert session.streams[1].sent == 6400
+        assert timestamps[29] - timestamps[25] >= 0.03
+        assert session.streams[1].sent == 9600
         await stop(socket, provider, session, task)
     finally:
         if not task.done():

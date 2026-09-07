@@ -6,6 +6,8 @@
 /sdkconfig.validation*
 /sdkconfig.hmac-validation
 /sdkconfig.hmac-validation.old
+/sdkconfig.local-bringup
+/sdkconfig.local-bringup.old
 /sdkconfig.parent-*
 /sdkconfig.ai-poc*
 /*.log

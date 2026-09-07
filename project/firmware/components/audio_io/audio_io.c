@@ -15,8 +15,8 @@ static DMA_ATTR int16_t receive_slots[PCM_SAMPLES * 2];
 static DMA_ATTR int16_t transmit_slots[PCM_SAMPLES * 2];
 #define VOICE_RING_SAMPLES AUDIO_VOICE_MAX_PENDING_SAMPLES
 #define DMA_BLOCKS 4
-_Static_assert(VOICE_RING_SAMPLES == PCM_SAMPLES * 25,
-               "Software ring must absorb the full advertised 500 ms credit");
+_Static_assert(VOICE_RING_SAMPLES == PCM_SAMPLES * 50,
+               "Software ring must absorb the full one-second hard credit");
 static portMUX_TYPE voice_lock = portMUX_INITIALIZER_UNLOCKED;
 static bool voice_mode;
 static uint32_t voice_epoch;
