@@ -154,9 +154,16 @@ int main(void)
     assert(https_json_operation("https://proxy.invalid", HTTP_METHOD_POST, token,
         "application/json", huge_body, &status, &json, NULL, &operation) == ESP_ERR_INVALID_SIZE);
     assert(initialized == before);
+    cancelled = dribble = false;
+    operation.response_limit = 4096;
+    response_body = "{\"nested\":[[[[[[[[[]]]]]]]]]}";
+    assert(https_json_operation("https://proxy.invalid", HTTP_METHOD_POST, token,
+        "application/json", "{}", &status, &json, NULL, &operation) == ESP_ERR_INVALID_RESPONSE);
     char endpoint[320];
     assert(recorder_proxy_endpoint("wss://proxy.invalid/v1/voice", "/readyz", endpoint, sizeof(endpoint)));
     assert(!strcmp(endpoint, "https://proxy.invalid/readyz"));
+    assert(recorder_proxy_endpoint("wss://proxy.invalid/v1/voice", "/v1/recordings/process-stream", endpoint, sizeof(endpoint)));
+    assert(!strcmp(endpoint, "wss://proxy.invalid/v1/recordings/process-stream"));
     assert(!recorder_proxy_endpoint("wss://user@evil.invalid/v1/voice", "/readyz", endpoint, sizeof(endpoint)));
     assert(!recorder_proxy_endpoint("ws://proxy.invalid/v1/voice", "/readyz", endpoint, sizeof(endpoint)));
     assert(!recorder_proxy_endpoint("wss://proxy.invalid/v1/voice?url=evil", "/readyz", endpoint, sizeof(endpoint)));

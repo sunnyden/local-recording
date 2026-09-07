@@ -2,6 +2,7 @@
 #include "https_operation.h"
 #include "recorder_core.h"
 #include "http_limits.h"
+#include "json_limits.h"
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
 #include "esp_log.h"
@@ -117,6 +118,8 @@ esp_err_t https_json_operation(const char *url, esp_http_client_method_t method,
     if (client) *status = esp_http_client_get_status_code(client);
     if (r.aborted) err = r.aborted;
     if (r.overflow) err = ESP_ERR_INVALID_SIZE;
+    if (err == ESP_OK && operation && !recorder_json_depth_ok((const uint8_t *)r.data, r.used, 8))
+        err = ESP_ERR_INVALID_RESPONSE;
     if (err == ESP_OK && r.used) {
         const char *end = NULL;
         *response = cJSON_ParseWithLengthOpts(r.data, r.used + 1, &end, true);

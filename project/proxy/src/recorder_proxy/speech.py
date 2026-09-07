@@ -9,24 +9,23 @@ from azure.identity.aio import ManagedIdentityCredential
 import httpx
 
 from .intelligence_errors import IntelligenceError, http_client, json_body, unavailable
+from .cleanup import finish_task
 
 SPEECH_VERSION = "2025-10-15"
 SPEECH_SCOPE = "https://cognitiveservices.azure.com/.default"
+STREAM_READ_TIMEOUT_SECONDS = 15 * 60
 
 
 async def disk(function, *args):
     # Do not close/unlink the WAV while an in-flight filesystem operation uses it.
     task = asyncio.create_task(asyncio.to_thread(function, *args))
-    try:
-        return await asyncio.shield(task)
-    except asyncio.CancelledError:
-        await task
-        raise
+    return await finish_task(task)
 
 
 class AudioMultipart(httpx.AsyncByteStream):
-    def __init__(self, file, size):
+    def __init__(self, file, size, progress=None):
         self.file = file
+        self.audio_size, self.progress = size, progress
         self.boundary = uuid4().hex
         self.prefix = (
             f"--{self.boundary}\r\nContent-Disposition: form-data; name=\"definition\"\r\n"
@@ -40,8 +39,13 @@ class AudioMultipart(httpx.AsyncByteStream):
     async def __aiter__(self):
         yield self.prefix
         await disk(self.file.seek, 0)
+        completed = 0
         while chunk := await disk(self.file.read, 65536):
             yield chunk
+            completed += len(chunk)
+            if self.progress:
+                await self.progress("transcribing", completed_bytes=completed,
+                                    total_bytes=self.audio_size)
         yield self.suffix
 
 
@@ -89,8 +93,11 @@ class FastTranscription:
         self.credential = credential or ManagedIdentityCredential(
             client_id=settings.managed_identity_client_id)
 
-    async def transcribe(self, file):
-        multipart = AudioMultipart(file, await disk(lambda: os.fstat(file.fileno()).st_size))
+    async def transcribe(self, file, *, stream=False, progress=None):
+        multipart = AudioMultipart(file, await disk(lambda: os.fstat(file.fileno()).st_size),
+                                   progress=progress)
+        timeout = (httpx.Timeout(STREAM_READ_TIMEOUT_SECONDS, connect=5, write=30, pool=5)
+                   if stream else httpx.Timeout(180, connect=5))
         try:
             token = await self.credential.get_token(SPEECH_SCOPE)
             async with self.http.stream(
@@ -99,7 +106,7 @@ class FastTranscription:
                 headers={"Authorization": f"Bearer {token.token}",
                          "Content-Type": f"multipart/form-data; boundary={multipart.boundary}",
                          "Content-Length": str(multipart.size)},
-                content=multipart, timeout=httpx.Timeout(180, connect=5),
+                content=multipart, timeout=timeout,
             ) as response:
                 if response.status_code == 429:
                     raise IntelligenceError("busy", 429, True)

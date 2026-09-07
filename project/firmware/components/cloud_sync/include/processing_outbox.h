@@ -4,7 +4,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
-typedef enum { PROCESS_PENDING, PROCESS_COMPLETED, PROCESS_TOO_LONG } processing_state_t;
+typedef enum {
+    PROCESS_PENDING, PROCESS_COMPLETED, PROCESS_TOO_LONG, PROCESS_REMOTE_MISSING
+} processing_state_t;
 typedef struct {
     uint32_t source_size, state;
     int64_t retry_not_before;

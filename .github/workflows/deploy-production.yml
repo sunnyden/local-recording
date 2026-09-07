@@ -228,6 +228,7 @@ jobs:
           {
             echo "proxy_url=$(jq -r '.proxyUrl.value' <<<"$outputs")"
             echo "voice_url=$(jq -r '.voiceWebSocketUrl.value' <<<"$outputs")"
+            echo "processing_url=$(jq -r '.recordingProcessWebSocketUrl.value' <<<"$outputs")"
           } >> "$GITHUB_OUTPUT"
 
       - name: Wait for authenticated proxy readiness
@@ -254,6 +255,7 @@ jobs:
             echo "- Image: \`${{ steps.image.outputs.ref }}\`"
             echo "- Health: ${{ steps.deploy.outputs.proxy_url }}/readyz"
             echo "- Device endpoint: \`${{ steps.deploy.outputs.voice_url }}\`"
+            echo "- Processing endpoint: \`${{ steps.deploy.outputs.processing_url }}\`"
             echo "- Scale: 0-1 Consumption replicas"
             echo "- Recording processing: \`$RECORDING_PROCESSING_ENABLED\`"
             echo "- OneDrive tools: \`$ONEDRIVE_TOOLS_ENABLED\`"

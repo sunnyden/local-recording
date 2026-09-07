@@ -109,4 +109,5 @@ output proxyUrl string = 'https://${proxy.properties.configuration.ingress.fqdn}
 output voiceWebSocketUrl string = 'wss://${proxy.properties.configuration.ingress.fqdn}/v1/voice'
 output recordingProcessUrl string = 'https://${proxy.properties.configuration.ingress.fqdn}/v1/recordings/process'
 output recordingStatusUrl string = 'https://${proxy.properties.configuration.ingress.fqdn}/v1/recordings/status'
+output recordingProcessWebSocketUrl string = 'wss://${proxy.properties.configuration.ingress.fqdn}/v1/recordings/process-stream'
 output proxyResourceId string = proxy.id

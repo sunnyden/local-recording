@@ -18,9 +18,22 @@ static _Atomic bool active, cancelled;
 static _Atomic int error_code;
 static _Atomic uint32_t confirmed, total_bytes;
 static _Atomic unsigned done_count;
-static _Atomic unsigned pending_count, processed_count, skipped_count;
+static _Atomic unsigned pending_count, processed_count, skipped_count, missing_count;
 static _Atomic int phase, processing_error;
-void cloud_sync_phase(sync_phase_t next) { atomic_store(&phase, next); }
+static _Atomic bool processing_bytes_known;
+static _Atomic uint32_t processing_bytes, processing_total;
+void cloud_sync_phase(sync_phase_t next)
+{
+    atomic_store(&processing_bytes_known, false);
+    atomic_store(&phase, next);
+}
+void cloud_sync_processing_progress(sync_phase_t next, bool known, uint32_t bytes, uint32_t total)
+{
+    atomic_store(&processing_bytes, bytes);
+    atomic_store(&processing_total, total);
+    atomic_store(&processing_bytes_known, known);
+    atomic_store(&phase, next);
+}
 bool cloud_sync_cancelled(void) { return atomic_load(&cancelled); }
 void cloud_sync_cancel(void) { atomic_store(&cancelled, true); }
 void cloud_sync_progress(uint32_t bytes, uint32_t total)
@@ -35,7 +48,11 @@ sync_status_t cloud_sync_status(void)
         .processing_result = atomic_load(&processing_error),
         .processing_pending = atomic_load(&pending_count),
         .processing_completed = atomic_load(&processed_count),
-        .processing_skipped = atomic_load(&skipped_count)};
+        .processing_skipped = atomic_load(&skipped_count),
+        .processing_missing = atomic_load(&missing_count),
+        .processing_bytes_known = atomic_load(&processing_bytes_known),
+        .processing_bytes = atomic_load(&processing_bytes),
+        .processing_total = atomic_load(&processing_total)};
 }
 static const char *get_string(cJSON *json, const char *name)
 {
@@ -137,13 +154,50 @@ static bool matching_item(cJSON *json, const char *name, uint32_t size, const ch
     const char *remote_hash = get_string(cJSON_GetObjectItemCaseSensitive(file, "hashes"), "sha1Hash");
     return remote_hash && !strcasecmp(remote_hash, hash);
 }
+static processing_result_t confirm_remote_missing(processing_job_t *job)
+{
+    if (cloud_sync_cancelled()) return PROCESS_CANCELLED;
+    /* A proxy 404 can also mean its configured folder is missing. Confirm the
+       exact uploaded item with the device's drive-bound Graph authorization. */
+    char url[512] = GRAPH "/items/";
+    char *end = url + strlen(url);
+    static const char hex[] = "0123456789ABCDEF";
+    for (const unsigned char *p = (const unsigned char *)job->item_id; *p; ++p) {
+        if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+            (*p >= '0' && *p <= '9') || *p == '-' || *p == '_' || *p == '.' || *p == '!')
+            *end++ = (char)*p;
+        else { *end++ = '%'; *end++ = hex[*p >> 4]; *end++ = hex[*p & 15]; }
+    }
+    strcpy(end, "?$select=id");
+    cJSON *json = NULL;
+    int status;
+    esp_err_t err = graph_request("deleted recording verification", url, HTTP_METHOD_GET,
+                                  NULL, &status, &json);
+    cJSON_Delete(json);
+    if (cloud_sync_cancelled()) return PROCESS_CANCELLED;
+    if (err != ESP_OK || status != 404)
+        return err == ESP_OK && status == 200 ? PROCESS_NOT_FOUND : PROCESS_UNAVAILABLE;
+    job->state = PROCESS_REMOTE_MISSING;
+    err = processing_outbox_save(job);
+    if (err != ESP_OK) {
+        job->state = PROCESS_PENDING;
+        return PROCESS_STORAGE_ERROR;
+    }
+    ESP_LOGW("sync", "Remote WAV deleted; skipping future processing, local copy retained");
+    return PROCESS_OK;
+}
 static void process_job(processing_job_t *job)
 {
     processing_result_t result = processing_run(job);
+    if (result == PROCESS_NOT_FOUND && job->state == PROCESS_PENDING)
+        result = confirm_remote_missing(job);
     if (job->state == PROCESS_COMPLETED) atomic_fetch_add(&processed_count, 1);
     else if (job->state == PROCESS_TOO_LONG) {
         atomic_fetch_add(&skipped_count, 1);
         cloud_sync_phase(SYNC_SKIPPED);
+    } else if (job->state == PROCESS_REMOTE_MISSING) {
+        atomic_fetch_add(&missing_count, 1);
+        cloud_sync_phase(SYNC_REMOTE_MISSING);
     } else {
         atomic_fetch_add(&pending_count, 1);
         atomic_store(&processing_error, result);
@@ -279,6 +333,7 @@ esp_err_t cloud_sync_start(void)
     atomic_store(&cancelled, false); atomic_store(&done_count, 0);
     atomic_store(&pending_count, 0); atomic_store(&processed_count, 0);
     atomic_store(&skipped_count, 0); atomic_store(&processing_error, PROCESS_OK);
+    atomic_store(&missing_count, 0);
     cloud_sync_phase(SYNC_UPLOADING);
     atomic_store(&error_code, ESP_OK); cloud_sync_progress(0, 0);
     if (xTaskCreate(sync_worker, "cloud_sync", 12288, NULL, 4, NULL) != pdPASS) {

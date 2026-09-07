@@ -47,8 +47,10 @@ all infrastructure Python tests and both manual OBO/Speech probe templates;
 compiling those templates does not execute diagnostics.
 
 See [`intelligent-recording.md`](intelligent-recording.md) for rollout and
-acceptance requirements. Processing is synchronous inside the proxy, not a
-queue/worker deployment. Disabling a feature restores the corresponding
+acceptance requirements. Processing stays owned by its connected request,
+not a queue/worker deployment. The separate `recorder.processing.v1` WebSocket
+reports phases and liveness without the legacy HTTP request's total deadline.
+Its URI is included in the deployment summary. Disabling a feature restores the corresponding
 backend gate without changing the existing voice wire protocol.
 
 Deployment application: `local-recording-github-deploy`

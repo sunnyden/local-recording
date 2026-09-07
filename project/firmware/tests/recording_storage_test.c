@@ -108,6 +108,9 @@ int main(void)
     assert(!fseek(f, end / 2, SEEK_SET) && fwrite("TORN", 1, 4, f) == 4);
     fclose(f);
     assert(processing_outbox_load(job.name, &loaded) == ESP_OK && loaded.state == PROCESS_PENDING);
+    job.state = PROCESS_REMOTE_MISSING;
+    assert(processing_outbox_save(&job) == ESP_OK);
+    assert(processing_outbox_load(job.name, &loaded) == ESP_OK && loaded.state == PROCESS_REMOTE_MISSING);
     assert(processing_outbox_catalog(0, name, &count) == ESP_OK && count == 1 && !strcmp(name, job.name));
     assert(storage_catalog(0, name, sizeof(name), &count) == ESP_OK && count == 5);
     clear_files(); _rmdir(RECORDING_DIR);

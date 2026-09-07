@@ -77,12 +77,21 @@ void app_main(void)
             }
         } else if (sync.active) {
             if (key == KEY_BACK) cloud_sync_cancel();
-            snprintf(status, sizeof(status), "%s %u %lu%%", cloud_sync_phase_name(sync.phase), sync.files_done,
-                (unsigned long)(sync.total_bytes ? (uint64_t)sync.confirmed_bytes * 100 / sync.total_bytes : 0));
+            cloud_sync_format_status(sync, status, sizeof(status));
             static char previous_status[64];
-            if (strcmp(previous_status, status)) {
+            if (!previous_sync || strcmp(previous_status, status)) {
                 show(10, status, false);
                 strcpy(previous_status, status);
+            }
+            char detail[64] = "";
+            if (sync.processing_pending)
+                snprintf(detail, sizeof(detail), "PENDING %s", cloud_sync_result_name(sync.processing_result));
+            else if (sync.processing_missing)
+                strcpy(detail, "DELETED REMOTE SKIPPED");
+            static char previous_detail[64];
+            if (!previous_sync || strcmp(previous_detail, detail)) {
+                show(11, detail, false);
+                strcpy(previous_detail, detail);
             }
         } else if (recorder_setup_active()) {
             if (key == KEY_BACK) recorder_setup_stop();

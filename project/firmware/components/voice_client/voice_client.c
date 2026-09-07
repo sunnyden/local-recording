@@ -21,6 +21,8 @@
 
 enum { CONNECTING, LISTENING, SPEAKING, STOPPING };
 static _Atomic bool active, stopping, ready;
+static _Atomic bool remote_stopping;
+static _Atomic uint32_t remote_stop_ms;
 static _Atomic int state, error_code;
 static _Atomic uint32_t current_epoch;
 typedef struct {
@@ -52,6 +54,16 @@ voice_status_t voice_client_status(void)
         .state = names[atomic_load(&state)]};
 }
 void voice_client_stop(void) { atomic_store(&stopping, true); }
+static bool draining_remote_stop(void)
+{
+    if (!atomic_load(&remote_stopping)) return false;
+    uint32_t now = (uint32_t)(esp_timer_get_time() / 1000);
+    /* Preserve the proxy's following error/stop frame, but do not wait for
+       a lost close notification until the full voice-session deadline. */
+    if (now - atomic_load(&remote_stop_ms) >= 250) atomic_store(&stopping, true);
+    else vTaskDelay(pdMS_TO_TICKS(20));
+    return true;
+}
 static void fail(esp_err_t err)
 {
     int expected = ESP_OK;
@@ -105,7 +117,7 @@ static bool capture_once(voice_session_t *s)
 static void capture(void *arg)
 {
     voice_session_t *s = arg;
-    while (!atomic_load(&stopping) && capture_once(s)) {}
+    while (!atomic_load(&stopping) && !atomic_load(&remote_stopping) && capture_once(s)) {}
     atomic_store(&s->capture_done, true);
     vTaskDelete(NULL);
 }
@@ -152,7 +164,12 @@ static void control(voice_session_t *s)
         else if (!strcmp(value, "connecting")) atomic_store(&state, CONNECTING);
         else if (!strcmp(value, "listening")) atomic_store(&state, LISTENING);
         else if (!strcmp(value, "speaking")) atomic_store(&state, SPEAKING);
-        else if (!strcmp(value, "stopping")) atomic_store(&state, STOPPING);
+        else if (!strcmp(value, "stopping")) {
+            if (!atomic_load(&remote_stopping))
+                atomic_store(&remote_stop_ms, (uint32_t)(esp_timer_get_time() / 1000));
+            atomic_store(&remote_stopping, true);
+            atomic_store(&state, STOPPING);
+        }
         else fail(ESP_ERR_INVALID_RESPONSE);
     } else if (!strcmp(type, "playback.start")) {
         uint32_t previous_epoch = atomic_load(&current_epoch);
@@ -201,7 +218,8 @@ static void binary(voice_session_t *s)
 }
 static void received(voice_session_t *s, esp_websocket_event_data_t *event)
 {
-    if (event->op_code == 8 || event->op_code == 9 || event->op_code == 10) return;
+    if (event->op_code == 8) { atomic_store(&stopping, true); return; }
+    if (event->op_code == 9 || event->op_code == 10) return;
     if (event->data_len < 0 || event->payload_len < 0 || event->payload_offset < 0 ||
         event->data_len > event->payload_len - event->payload_offset) {
         fail(ESP_ERR_INVALID_RESPONSE); return;
@@ -277,6 +295,7 @@ static void conversation(void *unused)
     if (err != ESP_OK) fail(err);
     int64_t ready_deadline = esp_timer_get_time() + 60000000;
     while (!atomic_load(&ready) && !atomic_load(&stopping)) {
+        if (draining_remote_stop()) continue;
         send_pending(s);
         if (esp_timer_get_time() > ready_deadline) { fail(ESP_ERR_TIMEOUT); break; }
         vTaskDelay(pdMS_TO_TICKS(20));
@@ -295,6 +314,7 @@ static void conversation(void *unused)
     voice_frame_t mic = {.kind = 1, .pcm = (const uint8_t *)microphone, .samples = PCM_SAMPLES};
     unsigned progress_tick = 0;
     while (!atomic_load(&stopping)) {
+        if (draining_remote_stop()) continue;
         send_pending(s);
         if (esp_timer_get_time() >= s->deadline) break;
 #ifdef RECORDER_HOST_TEST
@@ -316,18 +336,28 @@ static void conversation(void *unused)
     }
     atomic_store(&stopping, true);
     atomic_store(&state, STOPPING);
-#ifndef RECORDER_HOST_TEST
-    for (unsigned i = 0; !atomic_load(&s->capture_done) && i < 50; ++i)
+    ESP_LOGI("voice", "Cleanup: microphone quiesce");
+    for (unsigned i = 0; s && !atomic_load(&s->capture_done) && i < 50; ++i)
         vTaskDelay(pdMS_TO_TICKS(20));
-#endif
-    if (s && s->audio_started) board_speaker(false);
+    if (s && s->audio_started) {
+        esp_err_t muted = board_speaker(false);
+        if (muted != ESP_OK) fail(muted);
+    }
     if (s && s->ws) {
         if (esp_websocket_client_is_connected(s->ws))
             send_text(s, "{\"v\":1,\"type\":\"stop\",\"reason\":\"device_exit\"}");
-        esp_websocket_client_stop(s->ws);
-        esp_websocket_client_destroy(s->ws);
+        ESP_LOGI("voice", "Cleanup: websocket stop");
+        esp_err_t stopped = esp_websocket_client_stop(s->ws);
+        if (stopped != ESP_OK && esp_websocket_client_is_connected(s->ws)) fail(stopped);
+        ESP_LOGI("voice", "Cleanup: websocket destroy");
+        stopped = esp_websocket_client_destroy(s->ws);
+        if (stopped != ESP_OK) fail(stopped);
     }
-    if (s && s->audio_started) audio_stop();
+    if (s && s->audio_started) {
+        ESP_LOGI("voice", "Cleanup: audio stop");
+        esp_err_t stopped = audio_stop();
+        if (stopped != ESP_OK) fail(stopped);
+    }
     if (headers) { secret_zero(headers, 8256); free(headers); }
     if (s && s->controls) vQueueDelete(s->controls);
     if (s && s->microphone) vQueueDelete(s->microphone);
@@ -338,6 +368,7 @@ static void conversation(void *unused)
     }
 #endif
     free(s);
+    ESP_LOGI("voice", "Cleanup complete");
     atomic_store(&active, false);
     vTaskDelete(NULL);
 }
@@ -349,6 +380,7 @@ esp_err_t voice_client_start(void)
     bool expected = false;
     if (!atomic_compare_exchange_strong(&active, &expected, true)) return ESP_ERR_INVALID_STATE;
     atomic_store(&stopping, false); atomic_store(&ready, false);
+    atomic_store(&remote_stopping, false);
     atomic_store(&error_code, ESP_OK); atomic_store(&state, CONNECTING);
     atomic_store(&current_epoch, 0);
     if (xTaskCreate(conversation, "voice", 8192, NULL, 9, NULL) != pdPASS) {

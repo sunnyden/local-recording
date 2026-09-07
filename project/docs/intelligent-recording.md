@@ -19,23 +19,45 @@ The ESP uploads the WAV directly to OneDrive as before, then records a
 nonsecret processing notification on SD. Every upload-success path, including
 reconciliation with an already uploaded file, follows this path.
 
-Processing uses separate API-B-authenticated HTTP endpoints documented in
+Processing uses separate API-B-authenticated endpoints documented in
 [`recording-processing-v1.md`](../protocols/recording-processing-v1.md).
 The proxy checks the caller, source item, allowed folder, content fingerprint,
 WAV format and duration before submitting audio to Fast Transcription.
 Graph access tokens are not accepted as API-B authentication.
 
-The backend processes one recording synchronously. There is no cloud queue,
-scheduled processor or separate transcription worker. The SD outbox is a
-device-side retry journal, not a server queue. Cold-start warmup is bounded at
-120 seconds; processing has a 180-second backend budget and a 210-second
-device HTTP timeout. Processing may be incomplete even when upload succeeded.
-The next explicit Sync reconciles an uncertain result without uploading the
-same WAV again.
+The backend processes one recording in the connected request. There is no
+cloud queue, scheduled processor or separate transcription worker. The SD
+outbox is a device-side retry journal, not a server queue. Cold-start warmup
+is bounded at 120 seconds.
+
+The processing WebSocket at `/v1/recordings/process-stream` uses the separate
+`recorder.processing.v1` subprotocol. It reports phases and measurable file
+transfer progress while keeping the connection alive during opaque Speech
+work. Heartbeats indicate proxy liveness, not transcription percentage.
+It is not subject to the old HTTP operation's 180/210-second budgets.
+Authentication expiry, cancellation, connection loss and upstream safety
+timeouts still apply; processing does not detach after the socket disconnects.
+Streamed Speech calls allow a 15-minute response-read stall timeout because
+that API does not supply intermediate progress. File-transfer activity is
+measured separately. Repeated cancellation waits for outstanding filesystem
+work and spool cleanup before releasing the processing slot.
+The original HTTP process/status endpoints remain available. Status checks
+allow 45 seconds on the ESP, above the backend's 30-second status budget.
+
+Processing may be incomplete even when upload succeeded. Uncertain results
+are reconciled through status, not by blindly starting transcription again
+or uploading the same WAV. The display distinguishes processing, checking
+the result and pending work from a failed WAV upload.
+
+Deleting a previously uploaded WAV in OneDrive does not cause it to be
+reuploaded. For pending transcription, Sync confirms the exact item's absence
+directly with Graph before recording a durable deleted-remote skip. Subsequent
+Sync operations leave it skipped and keep the local WAV. A proxy-folder,
+permission or network failure alone cannot create that skip.
 
 Automatic transcription is limited to 30 minutes of PCM16 mono 16 kHz audio.
-Longer recordings still upload and play normally. The initial budget is not
-a guarantee that every 30-minute recording completes before ingress timeout.
+Longer recordings still upload and play normally. The legacy HTTP budget is
+not a guarantee that every 30-minute recording completes before ingress timeout.
 Do not retry an uncertain operation using a new source identity.
 
 ## Outputs
@@ -105,6 +127,13 @@ The agent searches and reads evidence before answering stored-information
 questions, treats retrieved content as data rather than instructions, and
 cites filenames/timestamps when available. It has no write tool or implicit
 live-weather/web access. Graph indexing can lag; retrieval is not vector RAG.
+
+Read tools use folder-scoped Graph search plus a bounded recent-transcript
+fallback for indexing lag. Tool failures are returned as explicit model-readable
+results. Tool-call arguments, recording contents and preauthenticated download
+URLs are not logged. Lifecycle diagnostics distinguish sending a result,
+provider acknowledgment and requesting the continuation. Interruption invalidates
+the old turn's work rather than allowing it to resume a newer turn.
 
 Both backend features default off for staged rollout:
 

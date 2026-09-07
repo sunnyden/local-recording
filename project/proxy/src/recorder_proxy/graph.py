@@ -1,6 +1,7 @@
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 import logging
 import re
+import time
 
 import httpx
 
@@ -67,16 +68,34 @@ class GraphClient:
         self.owns_http = http is None
         self.root_id = None
         self.drive_id = None
+        self.read_cache = None
+
+    def enable_read_cache(self):
+        """Snapshot metadata only within this short-lived read-tool request."""
+        self.read_cache = {}
+
+    async def _metadata(self, drive, item_id):
+        key = (drive, item_id)
+        if self.read_cache is not None and key in self.read_cache:
+            return self.read_cache[key]
+        item = clean_item(await self.request(
+            "GET", f"/drives/{drive}/items/{item_id}?$select={FIELDS}"), drive)
+        if self.read_cache is not None and len(self.read_cache) < 128:
+            self.read_cache[key] = item
+        return item
 
     async def request(self, method, path, *, content=None, headers=None, missing=False):
         if not path.startswith("/") or path.startswith("//"):
             raise IntelligenceError("item_not_allowed", 403)
+        started, status = time.monotonic(), 0
+        phase = "search" if "/search(" in path else "metadata"
         try:
             for attempt in range(2):
                 token = await self.tokens.token(self.user, refresh=attempt == 1)
                 auth = {"Authorization": f"Bearer {token}", **(headers or {})}
                 async with self.http.stream(method, GRAPH + path, headers=auth,
                                             content=content) as response:
+                    status = response.status_code
                     if response.status_code == 401 and attempt == 0:
                         continue
                     if missing and response.status_code == 404:
@@ -85,6 +104,9 @@ class GraphClient:
                     return await json_body(response)
         except httpx.HTTPError:
             raise unavailable() from None
+        finally:
+            logger.warning("graph_request phase=%s status=%d duration_ms=%d",
+                           phase, status, int((time.monotonic() - started) * 1000))
         raise IntelligenceError("consent_required", 403)
 
     async def root(self):
@@ -105,19 +127,24 @@ class GraphClient:
             if "folder" not in item:
                 raise IntelligenceError("item_not_allowed", 403)
         self.drive_id, self.root_id = drive_id, item["id"]
+        if self.read_cache is not None:
+            self.read_cache[(drive_id, item["id"])] = item
         return drive_id, item["id"]
 
-    async def item(self, drive, item_id):
+    async def item(self, drive, item_id, *, within=None):
         drive, item_id = identifier(drive), identifier(item_id)
         allowed_drive, root = await self.root()
         if drive != allowed_drive:
             raise IntelligenceError("item_not_allowed", 403)
-        item = await self.request("GET", f"/drives/{drive}/items/{item_id}?$select={FIELDS}")
+        boundary = within or root
+        item = await self._metadata(drive, item_id)
         original = clean_item(item, drive)
         visited = set()
         for _ in range(32):
-            if item["id"] == root:
+            if item["id"] == boundary:
                 return original
+            if item["id"] == root:
+                break
             if item["id"] in visited:
                 break
             visited.add(item["id"])
@@ -125,19 +152,35 @@ class GraphClient:
             parent_id = parent.get("id")
             if not parent_id:
                 break
-            item = await self.request(
-                "GET", f"/drives/{drive}/items/{identifier(parent_id)}?$select={FIELDS}")
+            item = await self._metadata(drive, identifier(parent_id))
             clean_item(item, drive)
             if "folder" not in item:
                 break
         raise IntelligenceError("item_not_allowed", 403)
 
-    async def children(self, drive, parent, *, limit=50):
+    @staticmethod
+    def _next_page(next_url, base):
+        if not next_url:
+            return None
+        if not isinstance(next_url, str) or len(next_url) > 4096:
+            raise unavailable()
+        try:
+            parsed = urlsplit(next_url)
+        except ValueError:
+            raise IntelligenceError("item_not_allowed", 403) from None
+        if (parsed.scheme != "https" or parsed.netloc != "graph.microsoft.com"
+                or unquote(parsed.path) != "/v1.0" + unquote(base) or parsed.fragment):
+            raise IntelligenceError("item_not_allowed", 403)
+        return base + "?" + parsed.query
+
+    async def children(self, drive, parent, *, limit=50, recent=False):
         item = await self.item(drive, parent)
         if "folder" not in item:
             raise IntelligenceError("item_not_allowed", 403)
         base = f"/drives/{drive}/items/{parent}/children"
         path = base + f"?$top=10&$select={FIELDS}"
+        if recent:
+            path += "&$orderby=lastModifiedDateTime%20desc"
         result, seen = [], set()
         while path and len(result) < limit:
             if path in seen or len(seen) >= 5:
@@ -152,16 +195,35 @@ class GraphClient:
                 if entry.get("parentReference", {}).get("id") != parent:
                     raise IntelligenceError("item_not_allowed", 403)
                 result.append(entry)
-            next_url = page.get("@odata.nextLink")
-            path = None
-            if next_url:
-                if not isinstance(next_url, str) or len(next_url) > 4096:
-                    raise unavailable()
-                parsed = urlsplit(next_url)
-                if (parsed.scheme != "https" or parsed.netloc != "graph.microsoft.com"
-                        or parsed.path != "/v1.0" + base or parsed.fragment):
-                    raise IntelligenceError("item_not_allowed", 403)
-                path = base + "?" + parsed.query
+            path = self._next_page(page.get("@odata.nextLink"), base)
+        return result
+
+    async def search(self, drive, parent, query, *, limit=10):
+        """Graph's folder-scoped content index; every hit is ancestry-validated."""
+        item = await self.item(drive, parent)
+        if ("folder" not in item or not isinstance(query, str) or not 1 <= len(query) <= 128
+                or any(ord(c) < 32 for c in query) or not 1 <= limit <= 50):
+            raise IntelligenceError("invalid_request", 400)
+        literal = quote(query.replace("'", "''"), safe="")
+        base = f"/drives/{drive}/items/{parent}/search(q='{literal}')"
+        path = base + f"?$top=10&$select={FIELDS}"
+        result, seen, ids, scanned = [], set(), set(), 0
+        while path and scanned < limit:
+            if path in seen or len(seen) >= 5:
+                raise unavailable()
+            seen.add(path)
+            page = await self.request("GET", path)
+            hits = page.get("value")
+            if not isinstance(hits, list) or len(hits) > 10:
+                raise unavailable()
+            for hit in hits[:limit - scanned]:
+                scanned += 1
+                clean_item(hit, drive)
+                actual = await self.item(drive, hit["id"], within=parent)
+                if actual["id"] not in ids:
+                    ids.add(actual["id"])
+                    result.append(actual)
+            path = self._next_page(page.get("@odata.nextLink"), base)
         return result
 
     async def named_child(self, drive, parent, name):
@@ -187,9 +249,11 @@ class GraphClient:
         token = await self.tokens.token(self.user)
         headers = {"Authorization": f"Bearer {token}"}
         total, chunks = 0, []
+        started, status = time.monotonic(), 0
         try:
             for hop in range(4):
                 async with self.http.stream("GET", url, headers=headers) as response:
+                    status = response.status_code
                     if response.status_code in (301, 302, 303, 307, 308):
                         url = download_url(response.headers.get("location", ""))
                         headers = {}  # Preauthenticated URL: NEVER forward the Graph bearer.
@@ -213,6 +277,9 @@ class GraphClient:
                     return b"".join(chunks) if not sink else total
         except httpx.HTTPError:
             raise unavailable() from None
+        finally:
+            logger.warning("graph_download status=%d bytes=%d duration_ms=%d",
+                           status, total, int((time.monotonic() - started) * 1000))
         raise unavailable()
 
     async def put_new(self, drive, parent, name, content, content_type):

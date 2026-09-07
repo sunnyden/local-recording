@@ -3,6 +3,7 @@ import base64
 import binascii
 from dataclasses import dataclass
 import json
+import logging
 from typing import AsyncIterator, Protocol
 from urllib.parse import urlencode
 
@@ -14,9 +15,20 @@ from websockets.exceptions import WebSocketException
 from .config import API_VERSION
 from .tools import TOOL_PROMPT, tool_definitions
 
+logger = logging.getLogger("recorder_proxy.provider")
+
 
 class ProviderError(Exception):
     """Redacted provider boundary failure."""
+
+
+class ResponseNotDispatched(asyncio.CancelledError):
+    """Cancellation before response.create entered the transport send."""
+
+
+@dataclass
+class ResponseDispatch:
+    started: bool = False
 
 
 @dataclass(frozen=True)
@@ -205,11 +217,16 @@ class VoiceLive:
         self.credential = ManagedIdentityCredential(client_id=settings.managed_identity_client_id)
         self.socket = None
         self.send_lock = asyncio.Lock()
+        self.tool_outputs_sent = 0
+        self.tool_outputs_acknowledged = 0
+        self.responses_sent = 0
 
-    async def _send(self, data):
+    async def _send(self, data, *, dispatch=None):
         try:
             async with self.send_lock:
                 async with asyncio.timeout(5):
+                    if dispatch is not None:
+                        dispatch.started = True
                     await self.socket.send(json.dumps(data, separators=(",", ":")))
         except (WebSocketException, OSError, TimeoutError):
             raise ProviderError() from None
@@ -224,6 +241,15 @@ class VoiceLive:
             raise ProviderError() from None
         if not isinstance(data, dict):
             raise ProviderError()
+        if self.settings.onedrive_tools_enabled:
+            item = data.get("item")
+            if (data.get("type") == "conversation.item.created" and isinstance(item, dict)
+                    and item.get("type") == "function_call_output"):
+                self.tool_outputs_acknowledged += 1
+                logger.warning("voice_tool_output_acknowledged count=%d",
+                               self.tool_outputs_acknowledged)
+            if data.get("type") == "error":
+                logger.warning("voice_upstream_error")
         return data
 
     async def open(self):
@@ -249,6 +275,8 @@ class VoiceLive:
                 if message.get("type") != "session.updated":
                     raise ProviderError()
                 verify_configuration(message, self.settings)
+                if self.settings.onedrive_tools_enabled:
+                    logger.warning("voice_tools_configuration_accepted tools=3 choice=auto")
         except (AzureError, WebSocketException, OSError, TimeoutError):
             raise ProviderError() from None
 
@@ -282,12 +310,28 @@ class VoiceLive:
                           "audio_end_ms": played_samples * 1000 // 16000})
 
     async def respond(self):
-        await self._send({"type": "response.create"})
+        dispatch = ResponseDispatch()
+        try:
+            await self._send({"type": "response.create"}, dispatch=dispatch)
+        except asyncio.CancelledError:
+            if not dispatch.started:
+                logger.warning("voice_response_create_cancelled dispatch=not_started")
+                raise ResponseNotDispatched() from None
+            # The transport may have written before cancellation interrupted its drain.
+            # Fail closed rather than allowing a duplicate response.create.
+            logger.warning("voice_response_create_cancelled dispatch=uncertain")
+            raise ProviderError() from None
+        self.responses_sent += 1
+        if self.settings.onedrive_tools_enabled:
+            logger.warning("voice_response_create_sent count=%d", self.responses_sent)
 
     async def tool_output(self, call_id, output):
         await self._send({"type": "conversation.item.create",
                           "item": {"type": "function_call_output", "call_id": call_id,
                                    "output": output}})
+        self.tool_outputs_sent += 1
+        logger.warning("voice_function_call_output_sent count=%d bytes=%d",
+                       self.tool_outputs_sent, len(output.encode()))
 
     async def close(self):
         try:

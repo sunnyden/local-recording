@@ -6,7 +6,8 @@ bool recorder_proxy_endpoint(const char *configured, const char *path, char *out
 {
     if (!configured || !path || !out || strncmp(configured, "wss://", 6) ||
         (strcmp(path, "/readyz") && strcmp(path, "/v1/recordings/process") &&
-         strcmp(path, "/v1/recordings/status"))) return false;
+         strcmp(path, "/v1/recordings/status") &&
+         strcmp(path, "/v1/recordings/process-stream"))) return false;
     const char *host = configured + 6, *slash = strchr(host, '/');
     if (!slash || strcmp(slash, "/v1/voice") || slash == host || slash - host > 253)
         return false;
@@ -17,6 +18,7 @@ bool recorder_proxy_endpoint(const char *configured, const char *path, char *out
             (c >= '0' && c <= '9') || c == '-' || c == '.')) return false;
         if (c == '.' && p + 1 < slash && (p[1] == '.' || p[1] == '-')) return false;
     }
-    int n = snprintf(out, capacity, "https://%.*s%s", (int)(slash - host), host, path);
+    const char *scheme = !strcmp(path, "/v1/recordings/process-stream") ? "wss" : "https";
+    int n = snprintf(out, capacity, "%s://%.*s%s", scheme, (int)(slash - host), host, path);
     return n > 0 && (size_t)n < capacity;
 }

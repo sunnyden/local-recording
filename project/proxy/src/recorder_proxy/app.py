@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 import logging
 import traceback
 
-import anyio
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.requests import ClientDisconnect
@@ -11,6 +10,7 @@ from starlette.routing import Route, WebSocketRoute
 
 from .auth import AuthError, AuthUnavailable, TokenValidator
 from .config import Settings
+from .cleanup import cancel_tasks, finish_task
 from .protocol import SUBPROTOCOL
 from .providers import VoiceLive
 from .sessions import VoiceSession
@@ -18,6 +18,7 @@ from .graph import GraphClient
 from .intelligence_errors import IntelligenceError, http_client, unavailable
 from .obo import GraphTokens, UserContext
 from .processing import RecordingProcessor
+from .processing_stream import ProcessingStream, SUBPROTOCOL as PROCESSING_SUBPROTOCOL
 from .recording_contract import RecordingRequest
 from .speech import FastTranscription
 from .tools import ReadTools
@@ -57,12 +58,9 @@ def create_app(settings=None, *, validator=None, provider_factory=None,
             yield
         finally:
             accepting = False
-            with anyio.CancelScope(shield=True):
-                for task in list(active):
-                    task.cancel()
-                for task in list(processing_requests):
-                    task.cancel()
-                await asyncio.gather(*active, *processing_requests, return_exceptions=True)
+
+            async def shutdown():
+                await cancel_tasks((*active, *processing_requests))
                 await validator.close()
                 if speech:
                     await speech.close()
@@ -70,6 +68,8 @@ def create_app(settings=None, *, validator=None, provider_factory=None,
                     await tokens.close()
                 if graph_http:
                     await graph_http.aclose()
+
+            await finish_task(asyncio.create_task(shutdown()))
 
     async def health(request):
         return JSONResponse({"status": "ok"})
@@ -166,11 +166,44 @@ def create_app(settings=None, *, validator=None, provider_factory=None,
         finally:
             processing_requests.discard(task)
 
+    async def process_stream(socket):
+        if not accepting or not processor:
+            await deny(socket, 503)
+            return
+        if (socket.scope.get("query_string")
+                or PROCESSING_SUBPROTOCOL not in socket.scope.get("subprotocols", [])):
+            await deny(socket, 400)
+            return
+        if len(processing_requests) >= 8:
+            await deny(socket, 429)
+            return
+        task = asyncio.current_task()
+        processing_requests.add(task)
+        try:
+            authorization = socket.headers.getlist("authorization")
+            if len(authorization) != 1:
+                await deny(socket, 401)
+                return
+            try:
+                principal = await validator.validate(authorization[0])
+            except AuthError:
+                await deny(socket, 401)
+                return
+            except AuthUnavailable:
+                await deny(socket, 503)
+                return
+            await socket.accept(subprotocol=PROCESSING_SUBPROTOCOL)
+            await ProcessingStream(socket, processor,
+                                   UserContext(principal, authorization[0][7:])).run()
+        finally:
+            processing_requests.discard(task)
+
     return Starlette(routes=[
         Route("/healthz", health),
         Route("/readyz", readiness),
         Route("/v1/recordings/process", process, methods=["POST"]),
         Route("/v1/recordings/status", process, methods=["POST"]),
+        WebSocketRoute("/v1/recordings/process-stream", process_stream),
         WebSocketRoute("/v1/voice", voice),
     ], lifespan=lifespan)
 
@@ -194,7 +227,4 @@ async def until_disconnect(request, operation):
             return work.result()
         watch.result()
     finally:
-        with anyio.CancelScope(shield=True):
-            work.cancel()
-            watch.cancel()
-            await asyncio.gather(work, watch, return_exceptions=True)
+        await cancel_tasks((work, watch))

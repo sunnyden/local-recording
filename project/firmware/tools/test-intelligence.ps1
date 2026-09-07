@@ -23,9 +23,18 @@ try {
     if ($LASTEXITCODE) { throw "Recording storage tests failed" }
     & $Compiler cc @flags -Wno-unused-parameter -Dtime=processing_test_time "$root\tests\cloud_processing_test.c" @storage `
         "$root\components\cloud_sync\cloud_sync.c" "$root\components\cloud_sync\processing_client.c" `
+        "$root\components\cloud_sync\processing_stream.c" "$root\components\cloud_sync\processing_protocol.c" `
+        "$root\components\recorder_core\voice_frame.c" `
         "$root\components\cloud_sync\sync_ui.c" "$root\components\network\proxy_endpoint.c" `
         "$cjson\cJSON.c" -o cloud-processing-test.exe
     if ($LASTEXITCODE) { throw "Cloud processing compile failed" }
     & .\cloud-processing-test.exe
     if ($LASTEXITCODE) { throw "Cloud processing tests failed" }
+    & $Compiler cc @flags "$root\tests\processing_stream_test.c" `
+        "$root\components\cloud_sync\processing_stream.c" "$root\components\cloud_sync\processing_protocol.c" `
+        "$root\components\network\proxy_endpoint.c" "$root\components\recorder_core\voice_frame.c" `
+        "$cjson\cJSON.c" -o processing-stream-test.exe
+    if ($LASTEXITCODE) { throw "Processing stream compile failed" }
+    & .\processing-stream-test.exe
+    if ($LASTEXITCODE) { throw "Processing stream tests failed" }
 } finally { Pop-Location }

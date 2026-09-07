@@ -3,6 +3,7 @@
 #include "https_operation.h"
 #include "recorder.h"
 #include "identity.h"
+#include "esp_websocket_client.h"
 #include "freertos/task.h"
 #include <assert.h>
 #include <dirent.h>
@@ -13,17 +14,23 @@
 
 enum scenario { SUCCESS, LOST_UPLOAD, PROCESS_TIMEOUT_CASE, PROCESS_MALFORMED,
     MISSING_CONSENT, SERVER_CONSENT, WARM_TIMEOUT, CANCEL_WARM, ALREADY_COMPLETE,
-    SERVER_TOO_LONG, SERVER_BUSY, STATUS_PROCESSING, WRONG_RESPONSE_VERSION, CANCEL_PROCESS };
+    SERVER_TOO_LONG, SERVER_BUSY, STATUS_PROCESSING, WRONG_RESPONSE_VERSION, CANCEL_PROCESS,
+    SOURCE_GONE, SOURCE_ROOT_MISSING, SOURCE_CHECK_TRANSIENT, SOURCE_CHECK_DENIED,
+    CANCEL_SOURCE_CHECK, STREAM_RECONCILED, STATUS_TIMEOUT_CASE, STREAM_SOURCE_GONE };
 static enum scenario scenario;
 static bool remote_exists;
 static unsigned uploads, graph_requests, process_requests, status_requests, warm_requests;
 static unsigned graph_tokens, proxy_tokens;
+static unsigned source_checks;
 static int64_t now;
 static const char *current_name = "rec-test.wav";
 static uint32_t source_size = 32044;
 static const char *sha1 = "abababababababababababababababababababab";
 static bool saw_transcribing, saw_warming;
 static bool expect_timestamp;
+struct host_websocket { host_ws_callback_t callback; void *arg; bool connected; };
+static unsigned refreshed_proxy;
+int esp_crt_bundle_attach(void *arg) { (void)arg; return 0; }
 bool recorder_network_ready(void) { return true; }
 bool recorder_time_valid(void) { return true; }
 bool credential_storage_allowed(void) { return true; }
@@ -46,11 +53,11 @@ BaseType_t xTaskCreate(TaskFunction_t function, const char *name, unsigned stack
 }
 esp_err_t identity_access(auth_resource_t resource, bool refresh, char *token, size_t capacity)
 {
-    (void)refresh;
     assert(capacity >= 16);
     if (resource == AUTH_GRAPH) { ++graph_tokens; strcpy(token, "GRAPH-ONLY"); }
     else {
         ++proxy_tokens;
+        if (refresh) ++refreshed_proxy;
         if (scenario == MISSING_CONSENT) return ESP_ERR_INVALID_STATE;
         strcpy(token, "API-B-ONLY");
     }
@@ -74,7 +81,16 @@ esp_err_t https_json_retry_info(const char *url, esp_http_client_method_t method
     assert(!strncmp(url, "https://graph.microsoft.com/", 28));
     ++graph_requests; if (retry) *retry = 0;
     *status = 200;
-    if (strstr(url, "?$select=id")) *json = cJSON_Parse("{\"id\":\"drive-A\"}");
+    if (strstr(url, "/items/")) {
+        ++source_checks;
+        assert(strstr(url, "/items/remote-item?$select=id"));
+        if (scenario == SOURCE_GONE || scenario == CANCEL_SOURCE_CHECK || scenario == STREAM_SOURCE_GONE) {
+            *status = 404; remote_exists = false;
+        } else if (scenario == SOURCE_CHECK_TRANSIENT) *status = 503;
+        else if (scenario == SOURCE_CHECK_DENIED) *status = 403;
+        if (scenario == CANCEL_SOURCE_CHECK) cloud_sync_cancel();
+        *json = cJSON_Parse("{\"id\":\"remote-item\"}");
+    } else if (strstr(url, "?$select=id")) *json = cJSON_Parse("{\"id\":\"drive-A\"}");
     else if (strstr(url, "createUploadSession")) {
         assert(method == HTTP_METHOD_POST);
         *json = cJSON_Parse("{\"uploadUrl\":\"https://upload.invalid/capability\"}");
@@ -131,33 +147,85 @@ esp_err_t https_json_operation(const char *url, esp_http_client_method_t method,
     cJSON_Delete(request);
     if (strstr(url, "/status")) {
         ++status_requests;
-        assert(operation->timeout_ms == 10000);
+        assert(operation->timeout_ms == 45000);
+        if (scenario == STATUS_TIMEOUT_CASE) { now += 45000000LL; return ESP_ERR_TIMEOUT; }
         if (scenario == ALREADY_COMPLETE) *json = cJSON_Parse(complete_json);
+        else if (scenario == STREAM_RECONCILED && process_requests) *json = cJSON_Parse(complete_json);
+        else if (scenario >= SOURCE_GONE && scenario <= CANCEL_SOURCE_CHECK) {
+            *status = 404;
+            *json = cJSON_Parse("{\"v\":1,\"error\":{\"code\":\"source_not_found\",\"retryable\":false}}");
+        }
+        else if (scenario == SERVER_BUSY) {
+            *status = 429; if (retry) *retry = 60;
+            *json = cJSON_Parse("{\"v\":1,\"error\":{\"code\":\"busy\",\"retryable\":true}}");
+        }
         else if (scenario == STATUS_PROCESSING)
             *json = cJSON_Parse("{\"v\":1,\"status\":\"processing\",\"operation_id\":\"operation\"}");
         else *json = cJSON_Parse("{\"v\":1,\"status\":\"not_started\",\"operation_id\":\"operation\"}");
         return ESP_OK;
     }
-    assert(strstr(url, "/process"));
-    assert(operation->timeout_ms == 210000);
-    ++process_requests;
-    saw_transcribing |= cloud_sync_status().phase == SYNC_TRANSCRIBING;
-    if (scenario == PROCESS_TIMEOUT_CASE) { now += 210000000LL; return ESP_ERR_TIMEOUT; }
-    if (scenario == CANCEL_PROCESS) { cloud_sync_cancel(); return ESP_ERR_INVALID_STATE; }
-    if (scenario == PROCESS_MALFORMED) {
-        *json = cJSON_Parse("{\"v\":1,\"status\":\"completed\",\"operation_id\":\"op\",\"json_item_id\":\"json\"}");
-    } else if (scenario == WRONG_RESPONSE_VERSION) {
-        *json = cJSON_Parse("{\"v\":2,\"status\":\"completed\",\"operation_id\":\"op\",\"json_item_id\":\"j\",\"text_item_id\":\"t\"}");
-    } else if (scenario == SERVER_CONSENT) {
-        *status = 403; *json = cJSON_Parse("{\"v\":1,\"error\":{\"code\":\"consent_required\",\"retryable\":false}}");
-    } else if (scenario == SERVER_TOO_LONG) {
-        *status = 413; *json = cJSON_Parse("{\"v\":1,\"error\":{\"code\":\"recording_too_long\",\"retryable\":false}}");
-    } else if (scenario == SERVER_BUSY) {
-        *status = 429; if (retry) *retry = 60;
-        *json = cJSON_Parse("{\"v\":1,\"error\":{\"code\":\"busy\",\"retryable\":true}}");
-    } else *json = cJSON_Parse(complete_json);
-    return ESP_OK;
+    assert(!"Firmware must not replay processing through HTTP");
+    return ESP_FAIL;
 }
+static void ws_text(esp_websocket_client_handle_t ws, const char *body)
+{
+    esp_websocket_event_data_t data = {.op_code = 1, .fin = true, .data_ptr = body,
+        .data_len = (int)strlen(body), .payload_len = (int)strlen(body)};
+    ws->callback(ws->arg, "WS", WEBSOCKET_EVENT_DATA, &data);
+}
+esp_websocket_client_handle_t esp_websocket_client_init(const esp_websocket_client_config_t *config)
+{
+    assert(!strcmp(config->uri, "wss://proxy.invalid/v1/recordings/process-stream"));
+    assert(!strcmp(config->subprotocol, "recorder.processing.v1"));
+    assert(!strcmp(config->headers, "Authorization: Bearer API-B-ONLY\r\n"));
+    assert(config->crt_bundle_attach && config->disable_auto_reconnect && refreshed_proxy);
+    return calloc(1, sizeof(struct host_websocket));
+}
+esp_err_t esp_websocket_register_events(esp_websocket_client_handle_t ws, int id,
+    host_ws_callback_t callback, void *arg)
+{
+    assert(id == WEBSOCKET_EVENT_ANY); ws->callback = callback; ws->arg = arg; return ESP_OK;
+}
+esp_err_t esp_websocket_client_start(esp_websocket_client_handle_t ws)
+{
+    ws->connected = true; ws->callback(ws->arg, "WS", WEBSOCKET_EVENT_CONNECTED, NULL); return ESP_OK;
+}
+int esp_websocket_client_send_text(esp_websocket_client_handle_t ws, const char *body, int length, TickType_t timeout)
+{
+    (void)timeout;
+    if (strstr(body, "\"cancel\"")) return length;
+    cJSON *request = cJSON_Parse(body);
+    assert(request && cJSON_GetObjectItemCaseSensitive(request, "source_sha1"));
+    cJSON_Delete(request);
+    ++process_requests;
+    ws_text(ws, "{\"v\":1,\"type\":\"started\",\"operation_id\":\"operation\"}");
+    ws_text(ws, "{\"v\":1,\"type\":\"progress\",\"phase\":\"transcribing\"}");
+    saw_transcribing |= cloud_sync_status().phase == SYNC_TRANSCRIBING;
+    if (scenario == PROCESS_TIMEOUT_CASE || scenario == STREAM_RECONCILED) return length;
+    if (scenario == CANCEL_PROCESS) { cloud_sync_cancel(); return length; }
+    cJSON *json;
+    if (scenario == PROCESS_MALFORMED) {
+        json = cJSON_Parse("{\"v\":1,\"status\":\"completed\",\"operation_id\":\"op\",\"json_item_id\":\"json\"}");
+    } else if (scenario == WRONG_RESPONSE_VERSION) {
+        json = cJSON_Parse("{\"v\":2,\"status\":\"completed\",\"operation_id\":\"op\",\"json_item_id\":\"j\",\"text_item_id\":\"t\"}");
+    } else if (scenario == SERVER_CONSENT) {
+        json = cJSON_Parse("{\"v\":1,\"error\":{\"code\":\"consent_required\",\"retryable\":false}}");
+    } else if (scenario == SERVER_TOO_LONG) {
+        json = cJSON_Parse("{\"v\":1,\"error\":{\"code\":\"recording_too_long\",\"retryable\":false}}");
+    } else if (scenario == STREAM_SOURCE_GONE) {
+        json = cJSON_Parse("{\"v\":1,\"error\":{\"code\":\"source_not_found\",\"retryable\":false}}");
+    } else json = cJSON_Parse(complete_json);
+    cJSON_AddStringToObject(json, "type", cJSON_GetObjectItemCaseSensitive(json, "error") ? "error" : "result");
+    char *response = cJSON_PrintUnformatted(json); cJSON_Delete(json);
+    ws_text(ws, response); free(response);
+    return length;
+}
+bool esp_websocket_client_is_connected(esp_websocket_client_handle_t ws) { return ws->connected; }
+esp_err_t esp_websocket_client_stop(esp_websocket_client_handle_t ws)
+{
+    ws->connected = false; ws->callback(ws->arg, "WS", WEBSOCKET_EVENT_DISCONNECTED, NULL); return ESP_OK;
+}
+esp_err_t esp_websocket_client_destroy(esp_websocket_client_handle_t ws) { free(ws); return ESP_OK; }
 static void clear_files(void)
 {
     DIR *dir = opendir(RECORDING_DIR); assert(dir);
@@ -183,6 +251,8 @@ static void reset(enum scenario next, bool exists)
     clear_files(); scenario = next; remote_exists = exists;
     uploads = graph_requests = process_requests = status_requests = warm_requests = 0;
     graph_tokens = proxy_tokens = 0; now = 0; saw_warming = saw_transcribing = false;
+    source_checks = 0;
+    refreshed_proxy = 0;
     source_size = 32044; current_name = "rec-test.wav";
     expect_timestamp = false;
     create_wave();
@@ -197,6 +267,14 @@ static processing_job_t receipt(void)
 }
 int main(void)
 {
+    char display[64];
+    sync_status_t transfer = {.phase = SYNC_TRANSCRIBING, .processing_bytes_known = true,
+        .processing_bytes = 25, .processing_total = 100, .confirmed_bytes = 32044, .total_bytes = 32044};
+    cloud_sync_format_status(transfer, display, sizeof(display));
+    assert(!strcmp(display, "SPEECH UPLOAD 25%"));
+    transfer.processing_bytes_known = false;
+    cloud_sync_format_status(transfer, display, sizeof(display));
+    assert(!strcmp(display, "TRANSCRIBING"));
     _mkdir(RECORDING_DIR);
     for (unsigned path = 0; path < 3; ++path) {
         reset(path == 2 ? LOST_UPLOAD : SUCCESS, path == 1);
@@ -213,7 +291,7 @@ int main(void)
     }
     const enum scenario pending[] = {PROCESS_TIMEOUT_CASE, PROCESS_MALFORMED, MISSING_CONSENT,
         SERVER_CONSENT, WARM_TIMEOUT, CANCEL_WARM, SERVER_BUSY, STATUS_PROCESSING,
-        WRONG_RESPONSE_VERSION, CANCEL_PROCESS};
+        WRONG_RESPONSE_VERSION, CANCEL_PROCESS, STATUS_TIMEOUT_CASE};
     for (size_t i = 0; i < sizeof(pending) / sizeof(*pending); ++i) {
         reset(pending[i], false);
         assert(cloud_sync_start() == ESP_OK);
@@ -228,6 +306,8 @@ int main(void)
         if (pending[i] == WARM_TIMEOUT) assert(now <= 120000000LL && !process_requests);
         if (pending[i] == MISSING_CONSENT || pending[i] == SERVER_CONSENT)
             assert(status.processing_result == PROCESS_CONSENT);
+        if (pending[i] == STATUS_TIMEOUT_CASE)
+            assert(status.processing_result == PROCESS_WAITING && !process_requests);
         assert(!unlink(RECORDING_DIR "/rec-test.wav")); /* Boot/next Sync needs only the durable job. */
         scenario = ALREADY_COMPLETE;
         unsigned previous_uploads = uploads, previous_process = process_requests;
@@ -246,6 +326,37 @@ int main(void)
     assert(cloud_sync_start() == ESP_OK);
     assert(receipt().state == PROCESS_TOO_LONG && cloud_sync_status().processing_skipped == 1);
     assert(!strcmp(cloud_sync_summary(cloud_sync_status()), "SYNC DONE >30MIN SKIPPED"));
+    reset(STREAM_RECONCILED, false);
+    assert(cloud_sync_start() == ESP_OK);
+    assert(receipt().state == PROCESS_COMPLETED && process_requests == 1 && status_requests == 2);
+    reset(STREAM_SOURCE_GONE, false);
+    assert(cloud_sync_start() == ESP_OK);
+    assert(receipt().state == PROCESS_REMOTE_MISSING && source_checks == 1 && process_requests == 1);
+    reset(SOURCE_GONE, false);
+    assert(cloud_sync_start() == ESP_OK);
+    assert(receipt().state == PROCESS_REMOTE_MISSING && source_checks == 1);
+    assert(cloud_sync_status().processing_missing == 1 && !cloud_sync_status().processing_pending);
+    assert(!strcmp(cloud_sync_summary(cloud_sync_status()), "SYNC DONE DELETED SKIPPED"));
+    FILE *retained = fopen(RECORDING_DIR "/rec-test.wav", "rb");
+    assert(retained); fclose(retained);
+    unsigned old_warm = warm_requests, old_status = status_requests, old_proxy = proxy_tokens;
+    assert(cloud_sync_start() == ESP_OK);
+    assert(uploads == 1 && !process_requests && source_checks == 1);
+    assert(warm_requests == old_warm && status_requests == old_status && proxy_tokens == old_proxy);
+    assert(!unlink(RECORDING_DIR "/rec-test.wav"));
+    current_name = "rec-new.wav"; scenario = SUCCESS; create_wave();
+    assert(cloud_sync_start() == ESP_OK);
+    assert(uploads == 2 && process_requests == 1);
+    assert(cloud_sync_status().processing_missing == 1 && cloud_sync_status().processing_completed == 1);
+    const enum scenario uncertain_missing[] = {SOURCE_ROOT_MISSING, SOURCE_CHECK_TRANSIENT,
+        SOURCE_CHECK_DENIED, CANCEL_SOURCE_CHECK};
+    for (unsigned i = 0; i < sizeof(uncertain_missing) / sizeof(*uncertain_missing); ++i) {
+        reset(uncertain_missing[i], true);
+        assert(cloud_sync_start() == ESP_OK);
+        assert(receipt().state == PROCESS_PENDING);
+        assert(cloud_sync_status().processing_pending == 1 && !cloud_sync_status().processing_missing);
+        assert(source_checks && !uploads && !process_requests);
+    }
     reset(SUCCESS, false);
     source_size = 16000u * 2 * 1800 + 46; create_wave();
     assert(cloud_sync_start() == ESP_OK);

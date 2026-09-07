@@ -247,8 +247,9 @@ Numeric `Retry-After` up to 120 seconds is honored with cancellation checks;
 longer or date-form retry values stop the attempt rather than retry early.
 Session expiry, consent/quota errors, and unsupported reconciliation require a
 new explicit Sync attempt. This is not an unlimited background retry service.
-After upload, pending files use API-B HTTP status/process operations for synchronous
-transcription. Upload success remains distinct from processing completion;
+After upload, pending files use API-B HTTP status and a separate
+`recorder.processing.v1` WebSocket for synchronous transcription with phase and
+heartbeat updates. Voice protocol/audio are unchanged. Upload success remains distinct from processing completion;
 pending processing survives reboot and files above 30 minutes are skipped without
 losing their successful upload. See [processing details](docs/recording-processing.md).
 

@@ -1,14 +1,19 @@
 import asyncio
 import hashlib
+import logging
 import os
 from pathlib import Path
 import struct
+import time
 from uuid import uuid4
 
 from .intelligence_errors import IntelligenceError, unavailable
+from .cleanup import finish_task
 from .recording_contract import MAX_WAV_BYTES, verify_source
 from .sidecars import MAX_SIDECAR, json_bytes, reconcile, recover_text, text_bytes
 from .speech import disk
+
+logger = logging.getLogger("recorder_proxy.processing")
 
 
 def validate_wav(file):
@@ -66,7 +71,7 @@ class RecordingProcessor:
             result.update(json_item_id=json_item["id"], text_item_id=text_item["id"])
         return result
 
-    async def handle(self, user, request, *, status=False):
+    async def handle(self, user, request, *, status=False, stream=False, progress=None):
         operation = request.operation(user.principal.oid)
         if self.running == operation:
             if status:
@@ -76,9 +81,25 @@ class RecordingProcessor:
             if self.running:
                 raise IntelligenceError("busy", 429, True)
             self.running = operation
-        graph = self.graph_factory(user)
+        graph = None
+        phase, phase_started = None, time.monotonic()
+
+        async def report(name, **counts):
+            nonlocal phase, phase_started
+            if name != phase:
+                now = time.monotonic()
+                if phase:
+                    logger.info("recording_phase_finished phase=%s duration_ms=%d",
+                                phase, (now - phase_started) * 1000)
+                phase, phase_started = name, now
+            if progress:
+                await progress(name, **counts)
+
         try:
-            async with asyncio.timeout(30 if status else self.settings.processing_deadline_seconds):
+            graph = self.graph_factory(user)
+            deadline = 30 if status else None if stream else self.settings.processing_deadline_seconds
+            async with asyncio.timeout(deadline):
+                await report("resolving")
                 source = await graph.item(request.drive_id, request.item_id)
                 verify_source(source, request)
                 names, complete, partial, raw_text = await reconcile(graph, request, source, operation)
@@ -86,15 +107,24 @@ class RecordingProcessor:
                     return self.result(operation, "already_completed", complete, partial)
                 if status:
                     return self.result(operation, "retry_required" if partial else "not_started")
-                return await self._process(graph, request, source, operation, names, partial, raw_text)
+                return await self._process(graph, request, source, operation, names, partial,
+                                           raw_text, report, stream)
         except TimeoutError:
+            if stream and not status:
+                raise unavailable() from None
             raise IntelligenceError("processing_deadline", 504, True) from None
         except OSError:
             raise unavailable() from None
         finally:
-            if not status:
-                self.running = None
-            await graph.close()
+            if phase:
+                logger.info("recording_phase_finished phase=%s duration_ms=%d",
+                            phase, (time.monotonic() - phase_started) * 1000)
+            try:
+                if graph:
+                    await finish_task(asyncio.create_task(graph.close()))
+            finally:
+                if not status:
+                    self.running = None
 
     async def _unchanged(self, graph, request, source):
         current = await graph.item(request.drive_id, request.item_id)
@@ -103,7 +133,8 @@ class RecordingProcessor:
                 or current["parentReference"]["id"] != source["parentReference"]["id"]):
             raise IntelligenceError("source_changed", 409)
 
-    async def _process(self, graph, request, source, operation, names, partial, raw_text):
+    async def _process(self, graph, request, source, operation, names, partial, raw_text,
+                       report, stream):
         # The random spool file is private, relative to the application cwd, and
         # unlinked on cancellation. Neither user tokens nor transcripts are spooled.
         path = Path(f".recording-{uuid4().hex}.wav")
@@ -119,12 +150,18 @@ class RecordingProcessor:
 
             await disk(open_file)
             digest = hashlib.sha1()
+            downloaded = 0
+            await report("downloading", completed_bytes=0, total_bytes=source["size"])
 
             async def sink(chunk):
+                nonlocal downloaded
                 await disk(file.write, chunk)
                 digest.update(chunk)
+                downloaded += len(chunk)
+                await report("downloading", completed_bytes=downloaded, total_bytes=source["size"])
 
             await graph.download(request.drive_id, request.item_id, MAX_WAV_BYTES, sink)
+            await report("validating")
             await disk(file.flush)
             if digest.hexdigest() != request.source_sha1:
                 raise IntelligenceError("source_changed", 409)
@@ -133,10 +170,15 @@ class RecordingProcessor:
             if partial:
                 phrases = recover_text(raw_text, operation, request)
             else:
-                phrases = await self.speech.transcribe(file)
+                await report("transcribing")
+                if stream:
+                    phrases = await self.speech.transcribe(file, stream=True, progress=report)
+                else:
+                    phrases = await self.speech.transcribe(file)
                 raw_text = text_bytes(operation, request, phrases)
                 if len(raw_text) > MAX_SIDECAR:
                     raise unavailable()
+            await report("saving")
             await self._unchanged(graph, request, source)
             parent = source["parentReference"]["id"]
             if not partial:
@@ -149,15 +191,19 @@ class RecordingProcessor:
             await graph.put_new(request.drive_id, parent, names[0], document,
                                 "application/json; charset=utf-8")
             # JSON is written last. Read both outputs back before claiming success.
+            await report("verifying")
             await self._unchanged(graph, request, source)
             _, complete, text_item, _ = await reconcile(graph, request, source, operation)
             if not complete or not text_item:
                 raise unavailable()
             return self.result(operation, "completed", complete, text_item)
         finally:
-            try:
-                if file is not None:
-                    await disk(file.close)
-            finally:
-                if owned:
-                    await disk(path.unlink, True)
+            async def cleanup():
+                try:
+                    if file is not None:
+                        await disk(file.close)
+                finally:
+                    if owned:
+                        await disk(path.unlink, True)
+
+            await finish_task(asyncio.create_task(cleanup()))

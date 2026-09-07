@@ -183,14 +183,14 @@ injected into the direct diagnostic only; production authentication was unchange
 
 ## Optional recording intelligence
 
-The authoritative HTTP contract is `..\protocols\recording-processing-v1.md`.
+The authoritative processing contract is `..\protocols\recording-processing-v1.md`.
 The ESP audio/control protocol and its queue, playback epoch, and truncation
 semantics are unchanged. Both new features are **off by default** so deployment
 can enable processing independently of voice retrieval.
 
 | Environment variable | Default / requirement |
 | --- | --- |
-| `RECORDING_PROCESSING_ENABLED` | `false`; set `true` for synchronous HTTP processing |
+| `RECORDING_PROCESSING_ENABLED` | `false`; set `true` for HTTP and progress-stream processing |
 | `ONEDRIVE_TOOLS_ENABLED` | `false`; separately enable the three voice read tools |
 | `GRAPH_ROOT_PATH` | `local-recording`; operator-configured relative folder, up to eight segments |
 | `SPEECH_ENDPOINT` | Required when processing is enabled; existing resource's HTTPS custom origin, preferably `https://RESOURCE.cognitiveservices.azure.com` |
@@ -263,7 +263,8 @@ from validated owner, drive, item, SHA1, and fixed pipeline version/options.
 Processing is limited to one in-flight operation per process, **without a
 queue**; duplicates receive `processing_in_progress`, unrelated contention
 receives `busy`. This slot is independent of voice. HTTP handlers themselves
-are bounded to eight concurrent requests. Keep one worker and one replica;
+and processing sockets share a bound of eight concurrent requests, including
+authenticated sockets waiting for their initial request. Keep one worker and one replica;
 this is not a cross-replica lock.
 
 The server verifies Graph size/hash metadata, downloads to a private random
@@ -272,7 +273,7 @@ chunks. Only PCM16, mono, 16 kHz WAV with actual duration at most 1800 seconds
 is accepted; maximum file size is 57,665,536 bytes including a bounded header
 allowance. File reads/writes and WAV parsing use bounded background thread
 operations, not the voice event loop. Speech requests are asynchronous.
-The entire processing budget is 180 seconds, including Graph and output writes.
+The HTTP processing budget is 180 seconds, including Graph and output writes.
 Timeout/disconnect/cancellation cancels the operation and removes its WAV.
 The container runs in a private writable `/app/data` directory; hard container
 termination relies on ephemeral container-storage disposal. No token or
@@ -304,6 +305,54 @@ sidecars after restart and returns `not_started`, `processing`,
 shared contract. HTTP 202 and fire-and-forget processing are not used. Warm
 `/readyz` first, allow roughly 210 seconds at the client, and query status after
 uncertain delivery rather than reuploading audio.
+
+### Processing progress stream
+
+`WSS /v1/recordings/process-stream` with subprotocol `recorder.processing.v1`
+accepts the same API-B Authorization header and source-identity JSON request.
+Authentication, user allowlisting, and subprotocol/query checks happen before
+the upgrade is accepted. Send exactly one text request within 15 seconds,
+at most 4096 UTF-8 bytes, including when fragmented. The existing uvicorn
+4096-byte reassembled-message bound and four-message queue remain required;
+neither the voice parser nor `recorder.voice.v1` changes.
+
+Server messages are text JSON, each at most 4096 bytes: `started` with the
+stable operation ID, `progress` with phase `resolving`, `downloading`,
+`validating`, `transcribing`, `saving`, or `verifying`, then a terminal `result`
+with the same completion status and both confirmed sidecar IDs as HTTP.
+Terminal failures use `{"v":1,"type":"error","error":{"code":"...","retryable":false}}`.
+HTTP and streams share the same single processing slot; `started` identifies
+the request, not admission to a queue or proof that Speech has started.
+Duplicates and contention still return `processing_in_progress` and `busy`.
+
+Optional `completed_bytes`/`total_bytes` describe only actual WAV transfer:
+downloaded bytes in `downloading`, and audio-file bytes handed to the Speech
+HTTP upload in `transcribing` (excluding multipart framing). They are **not**
+Speech progress or confirmed upstream receipt. Fast Transcription's response
+is opaque; there is no invented percentage. A heartbeat contains only the
+current phase and means proxy liveness. The writer emits it after five seconds
+without an update, with a five-second send limit (at most ten seconds apart
+on a responsive connection). Slow clients cannot accumulate chunk events:
+one writer and one coalesced pending update bound the application queue.
+Intermediate phase/byte updates may be coalesced.
+
+Streams have no 180-second operation deadline and do not inherit HTTP's
+210-second client / 240-second ingress request budget. Speech response-read
+stalls are bounded to 15 minutes, connect/pool waits to five seconds and upload
+write stalls to 30 seconds; these are per-I/O safety bounds, not an operation
+completion estimate. Graph retains its existing 30-second per-I/O timeout.
+Continuing downloads may exceed the old HTTP operation budget.
+
+The validated API-B token's expiry is enforced throughout the socket,
+including initial-request wait. Obtain a fresh API-B token before opening it.
+`{"v":1,"type":"cancel"}`, disconnect, expiry, and application shutdown cancel
+and await all request-owned work and remove the private WAV. Explicit cancel
+closes normally without claiming completion. There is no detached task, queue,
+worker, HTTP 202, token persistence, or change to voice session limits.
+If final delivery is lost after durable sidecar writes, query HTTP status:
+its backend budget remains 30 seconds, so allow 45 seconds on the client.
+Retain the device receipt until reconciliation; never infer failure of the
+already successful WAV upload from an interrupted processing connection.
 
 ### Server-only voice tools
 

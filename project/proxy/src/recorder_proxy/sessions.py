@@ -11,7 +11,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from .audio import AudioError, OutputAudio
 from .protocol import Frame, ProtocolError, Sequence, control, parse_control
-from .providers import ProviderError
+from .providers import ProviderError, ResponseNotDispatched
 from .voice_tools import VoiceTools
 
 logger = logging.getLogger("recorder_proxy.session")
@@ -109,6 +109,8 @@ class VoiceSession:
         self.ready = False
         self.tasks = []
         self.closing = False
+        self.terminal_stop_sent = False
+        self.transport_close_completed = False
         self.tools = VoiceTools(tools, provider, self._tool_continue) if tools else None
 
     async def emit(self, kind, **fields):
@@ -218,22 +220,43 @@ class VoiceSession:
             await self._maybe_respond()
 
     async def _maybe_respond(self):
+        if self.tools:
+            self.tools.retry_continuation()
         async with self.response_lock:
             if (not self.response_pending or self.speech_active or self.current_response
                     or self.response_requested
                     or (self.tools and self.tools.waiting)
                     or any(s.cleared and not s.acknowledged for s in self.streams.values())):
                 return
-            self.response_pending = False
-            self.response_requested = True
-            await self.provider.respond()
+            await self._request_response(consume_pending=True)
 
     async def _tool_continue(self):
+        generation = self.tools.generation if self.tools else None
         async with self.response_lock:
-            if self.speech_active or self.current_response or self.response_requested or self.closing:
-                return
-            self.response_requested = True
+            if (not self.tools or generation != self.tools.generation
+                    or self.speech_active or self.current_response or self.response_requested
+                    or self.closing
+                    or any(s.cleared and not s.acknowledged for s in self.streams.values())):
+                return False
+            await self._request_response()
+            return True
+
+    async def _request_response(self, *, consume_pending=False):
+        self.response_requested = True
+        if consume_pending:
+            self.response_pending = False
+        try:
             await self.provider.respond()
+        except ResponseNotDispatched:
+            self.response_requested = False
+            if consume_pending:
+                self.response_pending = True
+            logger.warning("voice_response_reservation_released dispatch=not_started")
+            raise
+        except asyncio.CancelledError:
+            # Injected providers without dispatch evidence cannot safely release a reservation.
+            logger.warning("voice_response_reservation_cancelled dispatch=unknown")
+            raise ProviderError() from None
 
     async def microphone_writer(self):
         while True:
@@ -415,6 +438,9 @@ class VoiceSession:
                 await self._audio(stream, event)
             elif event.type == "response_done":
                 if event.response_id != self.current_response:
+                    if self.tools and self.tools.finished_response(event.response_id):
+                        logger.warning("voice_tools_duplicate_response_done_ignored")
+                        continue
                     raise ProviderError()
                 for stream in list(self.streams.values()):
                     if stream.response_id == event.response_id and not stream.cleared:
@@ -505,16 +531,23 @@ class VoiceSession:
         if self.closing:
             return
         self.closing = True
-        with suppress(WebSocketDisconnect, OSError, RuntimeError, TimeoutError):
-            async with asyncio.timeout(1):
-                await self.socket.send_json(control("state", state="stopping"))
-                if error:
-                    await self.socket.send_json(control(
-                        "error", code=error.code, message="Voice session stopped.",
-                        retryable=error.retryable,
-                    ))
-                await self.socket.send_json(control("stop"))
-                await self.socket.close(code=1008 if error else 1000)
+        try:
+            with suppress(WebSocketDisconnect, OSError, RuntimeError, TimeoutError):
+                async with asyncio.timeout(1):
+                    await self.socket.send_json(control("state", state="stopping"))
+                    if error:
+                        await self.socket.send_json(control(
+                            "error", code=error.code, message="Voice session stopped.",
+                            retryable=error.retryable,
+                        ))
+                    await self.socket.send_json(control("stop"))
+                    self.terminal_stop_sent = True
+        finally:
+            # A failed terminal write must not skip closing an accepted transport.
+            with suppress(WebSocketDisconnect, OSError, RuntimeError, TimeoutError):
+                async with asyncio.timeout(1):
+                    await self.socket.close(code=1008 if error else 1000)
+                    self.transport_close_completed = True
 
     async def run(self):
         error = None
@@ -555,6 +588,7 @@ class VoiceSession:
                 except ProviderError:
                     error = error or SessionError("provider_unavailable", True)
                 finally:
-                    logger.warning("voice_session_end code=%s",
-                                   error.code if error else "normal")
                     await self._finish(error)
+                    logger.warning("voice_session_end code=%s stop_sent=%s close_completed=%s",
+                                   error.code if error else "normal", self.terminal_stop_sent,
+                                   self.transport_close_completed)

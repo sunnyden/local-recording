@@ -1,6 +1,9 @@
 # Firmware validation record
 
-## Timestamp/processing extension validation
+## Initial HTTP timestamp/processing extension validation (historical images)
+
+For the later separate processing WebSocket's current build artifacts, tests,
+and acceptance gates, see [processing stream validation](recording-processing.md).
 
 The owner confirmed the existing record/play/Sync/AI behavior before this
 extension. That confirmation supersedes the historical baseline's "not run"

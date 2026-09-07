@@ -232,3 +232,74 @@ def test_intelligence_config_is_explicit_and_off_by_default():
     ):
         with pytest.raises(ValueError):
             Settings.from_env({**enabled, **changes})
+
+
+async def test_folder_content_search_escapes_odata_and_validates_hits(settings, principal):
+    drive = Drive()
+    requests = []
+
+    async def handler(request):
+        if "/search(" in request.url.path:
+            requests.append(request)
+            return httpx.Response(200, json={"value": [drive.items["audio"]]})
+        return await drive.handle(request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = GraphClient(settings, Tokens(), UserContext(principal, "B"), http=http)
+        client.enable_read_cache()
+        items = await client.search("drive", "folder", "budget's / plan? #next", limit=10)
+        assert [item["id"] for item in items] == ["audio"]
+        assert requests[0].url.path.startswith("/v1.0/drives/drive/items/folder/search(q=")
+        assert "budget''s" in requests[0].url.path
+        assert b"%2F" in requests[0].url.raw_path and b"%3F" in requests[0].url.raw_path
+        assert requests[0].url.params["$top"] == "10"
+        drive.items["audio"]["parentReference"]["id"] = "root"
+        fresh = GraphClient(settings, Tokens(), UserContext(principal, "B"), http=http)
+        fresh.enable_read_cache()
+        with pytest.raises(IntelligenceError, match="item_not_allowed"):
+            await fresh.search("drive", "folder", "budget")
+
+
+async def test_search_next_page_cannot_change_search_root_or_query(settings, principal):
+    drive = Drive()
+
+    async def handler(request):
+        if "/search(" in request.url.path:
+            return httpx.Response(200, json={"value": [], "@odata.nextLink":
+                "https://graph.microsoft.com/v1.0/drives/drive/root/search(q='secret')?$skiptoken=x"})
+        return await drive.handle(request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = GraphClient(settings, Tokens(), UserContext(principal, "B"), http=http)
+        with pytest.raises(IntelligenceError, match="item_not_allowed"):
+            await client.search("drive", "folder", "budget")
+
+
+async def test_read_request_cache_avoids_repeated_ancestry_without_caching_processing(graph):
+    client, drive, _ = graph
+    client.enable_read_cache()
+    await client.item("drive", "audio")
+    before = len(drive.calls)
+    await client.item("drive", "audio")
+    assert len(drive.calls) == before
+    assert await client.download("drive", "audio", 4096) == drive.content["audio"]
+    assert len(drive.calls) == before + 1
+    fresh = GraphClient(client.settings, client.tokens, client.user, http=client.http)
+    await fresh.item("drive", "audio")
+    drive.items["audio"]["eTag"] = '"new-version"'
+    assert (await fresh.item("drive", "audio"))["eTag"] == '"new-version"'
+
+
+async def test_search_subfolder_does_not_accept_sibling_hit(settings, principal):
+    drive = Drive()
+    drive.add("sub", "nested", "folder", folder=True)
+
+    async def handler(request):
+        if "/search(" in request.url.path:
+            return httpx.Response(200, json={"value": [drive.items["audio"]]})
+        return await drive.handle(request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = GraphClient(settings, Tokens(), UserContext(principal, "B"), http=http)
+        with pytest.raises(IntelligenceError, match="item_not_allowed"):
+            await client.search("drive", "sub", "budget")

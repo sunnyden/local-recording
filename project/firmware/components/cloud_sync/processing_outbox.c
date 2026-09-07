@@ -37,7 +37,7 @@ bool processing_job_valid(const processing_job_t *job)
 {
     if (!job || !bounded(job->name, sizeof(job->name), true) ||
         !storage_valid_name(job->name) || job->source_size < 44 ||
-        job->state > PROCESS_TOO_LONG || job->retry_not_before < 0 ||
+        job->state > PROCESS_REMOTE_MISSING || job->retry_not_before < 0 ||
         !bounded(job->drive_id, sizeof(job->drive_id), true) ||
         !bounded(job->item_id, sizeof(job->item_id), true) ||
         !bounded(job->source_sha1, sizeof(job->source_sha1), true) ||
