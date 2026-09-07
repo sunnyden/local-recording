@@ -222,7 +222,13 @@ class GraphClient:
                     raise unavailable()
                 # Search projections are hints, not authoritative driveItem metadata.
                 # Resolve in the owned drive and validate the actual item and ancestry.
-                actual = await self.item(drive, identifier(hit.get("id")), within=parent)
+                try:
+                    actual = await self.item(drive, identifier(hit.get("id")), within=parent)
+                except IntelligenceError as exc:
+                    if exc.code not in ("item_not_allowed", "source_not_found"):
+                        raise
+                    logger.warning("graph_search_hit_filtered reason=%s", exc.code)
+                    continue
                 if actual["id"] not in ids:
                     ids.add(actual["id"])
                     result.append(actual)

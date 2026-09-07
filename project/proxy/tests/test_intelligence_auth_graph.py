@@ -256,8 +256,7 @@ async def test_folder_content_search_escapes_odata_and_validates_hits(settings, 
         drive.items["audio"]["parentReference"]["id"] = "root"
         fresh = GraphClient(settings, Tokens(), UserContext(principal, "B"), http=http)
         fresh.enable_read_cache()
-        with pytest.raises(IntelligenceError, match="item_not_allowed"):
-            await fresh.search("drive", "folder", "budget")
+        assert await fresh.search("drive", "folder", "budget") == []
 
 
 @pytest.mark.parametrize("projection", [
@@ -297,7 +296,40 @@ async def test_search_projection_cannot_override_authoritative_scope(settings, p
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
         client = GraphClient(settings, Tokens(), UserContext(principal, "B"), http=http)
-        with pytest.raises(IntelligenceError, match="item_not_allowed"):
+        assert await client.search("drive", "folder", "recording") == []
+
+
+async def test_search_filters_outside_and_deleted_hits_without_losing_valid_results(settings, principal):
+    drive = Drive()
+    drive.add("outside", "private-outside.txt", "root", b"must not be returned")
+
+    async def handler(request):
+        if "/search(" in request.url.path:
+            return httpx.Response(200, json={"value": [
+                {"id": "outside"}, {"id": "deleted"}, {"id": "audio"},
+            ]})
+        return await drive.handle(request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = GraphClient(settings, Tokens(), UserContext(principal, "B"), http=http)
+        items = await client.search("drive", "folder", "recording")
+        assert [item["id"] for item in items] == ["audio"]
+        assert not any(request.url.path.endswith("/content") for request in drive.calls)
+
+
+async def test_search_does_not_hide_graph_authorization_failures(settings, principal):
+    drive = Drive()
+
+    async def handler(request):
+        if "/search(" in request.url.path:
+            return httpx.Response(200, json={"value": [{"id": "audio"}]})
+        if request.url.path.endswith("/items/audio"):
+            return httpx.Response(403)
+        return await drive.handle(request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = GraphClient(settings, Tokens(), UserContext(principal, "B"), http=http)
+        with pytest.raises(IntelligenceError, match="consent_required"):
             await client.search("drive", "folder", "recording")
 
 
@@ -342,5 +374,4 @@ async def test_search_subfolder_does_not_accept_sibling_hit(settings, principal)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
         client = GraphClient(settings, Tokens(), UserContext(principal, "B"), http=http)
-        with pytest.raises(IntelligenceError, match="item_not_allowed"):
-            await client.search("drive", "sub", "budget")
+        assert await client.search("drive", "sub", "budget") == []
