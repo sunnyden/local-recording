@@ -156,10 +156,12 @@ def create_app(settings=None, *, validator=None, provider_factory=None,
         except (TimeoutError, ClientDisconnect):
             return intelligence_error(unavailable())
         except IntelligenceError as exc:
-            origin = traceback.extract_tb(exc.__traceback__)[-1]
-            logger.warning("recording_request_failed operation=%s code=%s origin=%s:%d",
+            frames = traceback.extract_tb(exc.__traceback__)
+            origin = frames[-1]
+            logger.warning("recording_request_failed operation=%s code=%s origin=%s:%d via=%s",
                            "status" if request.url.path.endswith("/status") else "process",
-                           exc.code, origin.name, origin.lineno)
+                           exc.code, origin.name, origin.lineno,
+                           "/".join(f"{frame.name}:{frame.lineno}" for frame in frames[-5:]))
             return intelligence_error(exc)
         finally:
             processing_requests.discard(task)
