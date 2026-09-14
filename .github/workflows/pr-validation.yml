@@ -26,6 +26,12 @@ jobs:
             project/proxy/requirements-test.lock
             project/companion/pyproject.toml
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.16.0"
+          cache: npm
+          cache-dependency-path: tools/gui-assets/package-lock.json
+
       - name: Install proxy and companion test dependencies
         run: |
           python -m pip install --requirement project/proxy/requirements-test.lock
@@ -35,6 +41,13 @@ jobs:
         run: |
           PYTHONPATH=project/proxy/src python -m pytest project/proxy/tests project/infra/tests project/tests -q
           PYTHONPATH=project/companion/src python -m pytest project/companion/tests -q
+
+      - name: Verify deterministic GUI assets
+        working-directory: tools/gui-assets
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run check
+          npm test
 
       - name: Build and lint Bicep
         run: |
@@ -93,3 +106,15 @@ jobs:
           esp_idf_version: v6.1
           target: esp32s3
           path: project/firmware
+
+      - name: Build opt-in lightweight GUI firmware
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v6.1
+          target: esp32s3
+          path: project/firmware
+          command: >-
+            idf.py -B build-gui-ci
+            -D SDKCONFIG=build-gui-ci/sdkconfig
+            -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.gui.defaults"
+            build

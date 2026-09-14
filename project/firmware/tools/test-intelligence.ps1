@@ -14,7 +14,7 @@ $flags = @("-std=c11", "-Wall", "-Wextra", "-Werror", "-D_CRT_SECURE_NO_WARNINGS
     "-I", "$root\components\cloud_sync\include", "-I", "$root\components\network\include",
     "-I", "$root\components\identity\include", "-I", $cjson)
 $storage = @("$root\components\recorder\storage.c", "$root\components\recorder\recording_name.c",
-    "$root\components\recorder_core\wav.c", "$root\components\cloud_sync\processing_outbox.c")
+    "$root\components\recorder_core\ogg_opus.c", "$root\components\cloud_sync\processing_outbox.c")
 Push-Location $build
 try {
     & $Compiler cc @flags -Dtime=recording_test_time "$root\tests\recording_storage_test.c" @storage -o recording-storage-test.exe

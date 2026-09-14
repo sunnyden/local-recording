@@ -23,8 +23,9 @@ static unsigned uploads, graph_requests, process_requests, status_requests, warm
 static unsigned graph_tokens, proxy_tokens;
 static unsigned source_checks;
 static int64_t now;
-static const char *current_name = "rec-test.wav";
-static uint32_t source_size = 32044;
+static const char *current_name = "rec-test.opus";
+static uint32_t source_size;
+static uint32_t source_samples = PCM_SAMPLES;
 static const char *sha1 = "abababababababababababababababababababab";
 static bool saw_transcribing, saw_warming;
 static bool expect_timestamp;
@@ -94,7 +95,7 @@ esp_err_t https_json_retry_info(const char *url, esp_http_client_method_t method
     else if (strstr(url, "createUploadSession")) {
         assert(method == HTTP_METHOD_POST);
         *json = cJSON_Parse("{\"uploadUrl\":\"https://upload.invalid/capability\"}");
-    } else if (strstr(url, ".wav")) {
+    } else if (strstr(url, ".opus")) {
         if (remote_exists) *json = remote_item();
         else { *status = 404; *json = cJSON_CreateObject(); }
     } else *json = cJSON_Parse("{\"folder\":{}}");
@@ -237,13 +238,20 @@ static void clear_files(void)
     }
     closedir(dir);
 }
-static void create_wave(void)
+static void create_opus(void)
 {
     char path[128]; snprintf(path, sizeof(path), RECORDING_DIR "/%s", current_name);
     FILE *f = fopen(path, "wb"); assert(f);
-    uint8_t header[44]; assert(wav_header(header, source_size - 44));
-    assert(fwrite(header, 1, 44, f) == 44);
-    assert(!fseek(f, source_size - 1, SEEK_SET) && fputc(0, f) == 0);
+    ogg_opus_writer_t writer;
+    uint8_t packet[60] = {0x48};
+    assert(ogg_opus_writer_begin(&writer, f, 1, 312));
+    for (uint32_t samples = 0; samples < source_samples; samples += PCM_SAMPLES)
+        assert(ogg_opus_writer_packet(&writer, packet, sizeof(packet), PCM_SAMPLES));
+    assert(ogg_opus_writer_packet(&writer, packet, sizeof(packet), PCM_SAMPLES));
+    assert(ogg_opus_writer_finish(&writer, source_samples) && !fflush(f));
+    long size = ftell(f);
+    assert(size > 0 && (uint64_t)size <= UINT32_MAX);
+    source_size = (uint32_t)size;
     fclose(f);
 }
 static void reset(enum scenario next, bool exists)
@@ -253,9 +261,9 @@ static void reset(enum scenario next, bool exists)
     graph_tokens = proxy_tokens = 0; now = 0; saw_warming = saw_transcribing = false;
     source_checks = 0;
     refreshed_proxy = 0;
-    source_size = 32044; current_name = "rec-test.wav";
+    source_samples = PCM_SAMPLES; current_name = "rec-test.opus";
     expect_timestamp = false;
-    create_wave();
+    create_opus();
 }
 static processing_job_t receipt(void)
 {
@@ -308,7 +316,7 @@ int main(void)
             assert(status.processing_result == PROCESS_CONSENT);
         if (pending[i] == STATUS_TIMEOUT_CASE)
             assert(status.processing_result == PROCESS_WAITING && !process_requests);
-        assert(!unlink(RECORDING_DIR "/rec-test.wav")); /* Boot/next Sync needs only the durable job. */
+        assert(!unlink(RECORDING_DIR "/rec-test.opus")); /* Boot/next Sync needs only the durable job. */
         scenario = ALREADY_COMPLETE;
         unsigned previous_uploads = uploads, previous_process = process_requests;
         if (pending[i] == SERVER_BUSY) {
@@ -337,14 +345,14 @@ int main(void)
     assert(receipt().state == PROCESS_REMOTE_MISSING && source_checks == 1);
     assert(cloud_sync_status().processing_missing == 1 && !cloud_sync_status().processing_pending);
     assert(!strcmp(cloud_sync_summary(cloud_sync_status()), "SYNC DONE DELETED SKIPPED"));
-    FILE *retained = fopen(RECORDING_DIR "/rec-test.wav", "rb");
+    FILE *retained = fopen(RECORDING_DIR "/rec-test.opus", "rb");
     assert(retained); fclose(retained);
     unsigned old_warm = warm_requests, old_status = status_requests, old_proxy = proxy_tokens;
     assert(cloud_sync_start() == ESP_OK);
     assert(uploads == 1 && !process_requests && source_checks == 1);
     assert(warm_requests == old_warm && status_requests == old_status && proxy_tokens == old_proxy);
-    assert(!unlink(RECORDING_DIR "/rec-test.wav"));
-    current_name = "rec-new.wav"; scenario = SUCCESS; create_wave();
+    assert(!unlink(RECORDING_DIR "/rec-test.opus"));
+    current_name = "rec-new.opus"; scenario = SUCCESS; create_opus();
     assert(cloud_sync_start() == ESP_OK);
     assert(uploads == 2 && process_requests == 1);
     assert(cloud_sync_status().processing_missing == 1 && cloud_sync_status().processing_completed == 1);
@@ -358,7 +366,7 @@ int main(void)
         assert(source_checks && !uploads && !process_requests);
     }
     reset(SUCCESS, false);
-    source_size = 16000u * 2 * 1800 + 46; create_wave();
+    source_samples = OPUS_MAX_SAMPLES + PCM_SAMPLES; create_opus();
     assert(cloud_sync_start() == ESP_OK);
     assert(uploads == 1 && !warm_requests && !process_requests && receipt().state == PROCESS_TOO_LONG);
     reset(SUCCESS, true);
@@ -370,10 +378,10 @@ int main(void)
     assert(!warm_requests && !status_requests && !process_requests && !uploads);
     assert(cloud_sync_status().error != ESP_OK);
     reset(SUCCESS, false);
-    assert(!unlink(RECORDING_DIR "/rec-test.wav"));
+    assert(!unlink(RECORDING_DIR "/rec-test.opus"));
     for (unsigned i = 0; i < 3; ++i) {
         processing_job_t job = {.source_size = source_size};
-        snprintf(job.name, sizeof(job.name), "rec-pending-%u.wav", i);
+        snprintf(job.name, sizeof(job.name), "rec-pending-%u.opus", i);
         snprintf(job.item_id, sizeof(job.item_id), "remote-item-%u", i);
         strcpy(job.drive_id, "drive-A"); strcpy(job.source_sha1, sha1);
         assert(processing_outbox_save(&job) == ESP_OK);
@@ -386,18 +394,19 @@ int main(void)
     assert(!uploads && process_requests == 6 && cloud_sync_status().processing_completed == 3);
     for (unsigned i = 0; i < 3; ++i) {
         char name[65], id[129]; processing_job_t job;
-        snprintf(name, sizeof(name), "rec-pending-%u.wav", i);
+        snprintf(name, sizeof(name), "rec-pending-%u.opus", i);
         snprintf(id, sizeof(id), "remote-item-%u", i);
         assert(processing_outbox_load(name, &job) == ESP_OK);
         assert(job.state == PROCESS_COMPLETED && !strcmp(job.item_id, id));
     }
     reset(SUCCESS, false);
-    assert(!unlink(RECORDING_DIR "/rec-test.wav"));
-    current_name = "AudioRecording_20260907_220536.wav"; expect_timestamp = true;
+    assert(!unlink(RECORDING_DIR "/rec-test.opus"));
+    current_name = "AudioRecording_20260907_220536.opus"; expect_timestamp = true;
     recording_file_t recording;
-    assert(storage_begin(&recording) == ESP_OK);
-    uint8_t pcm[32000] = {0};
-    assert(storage_append(&recording, pcm, sizeof(pcm)) == ESP_OK);
+    assert(storage_begin(&recording, 312) == ESP_OK);
+    uint8_t packet[60] = {0x48};
+    assert(storage_append(&recording, packet, sizeof(packet), PCM_SAMPLES) == ESP_OK);
+    assert(storage_append_padding(&recording, packet, sizeof(packet), PCM_SAMPLES) == ESP_OK);
     assert(storage_finish(&recording) == ESP_OK);
     assert(cloud_sync_start() == ESP_OK && process_requests == 1 && receipt().state == PROCESS_COMPLETED);
     clear_files(); _rmdir(RECORDING_DIR);

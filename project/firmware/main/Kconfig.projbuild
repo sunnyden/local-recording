@@ -1,4 +1,21 @@
 menu "Recorder"
+config RECORDER_GUI
+    bool "Light strip-rendered recorder GUI"
+    depends on RECORDER_SPI_LCD_CONFIRMED
+    default n
+config RECORDER_GUI_REDUCED_MOTION
+    bool "Disable decorative GUI activity updates"
+    depends on RECORDER_GUI
+    default n
+config RECORDER_GUI_TEST_INPUT
+    bool "Development-only bounded serial GUI test commands"
+    depends on RECORDER_SPI_LCD_CONFIRMED
+    default n
+    help
+        Opt-in nonblocking console bridge for ui ping/status/key/demo only.
+        Real key commands invoke the same actions as physical keys.
+        Demo commands never start recording, networking or provisioning.
+        Never enable in normal releases.
 config RECORDER_TIMEZONE_OFFSET_MINUTES
     int "Recording filename UTC offset in minutes (east is positive)"
     range -720 840

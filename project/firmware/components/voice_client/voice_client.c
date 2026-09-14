@@ -1,5 +1,6 @@
 #include "voice_client.h"
 #include "audio_io.h"
+#include "audio_meter.h"
 #include "board.h"
 #include "recorder_core.h"
 #include "recorder_network.h"
@@ -25,6 +26,11 @@ static _Atomic bool remote_stopping;
 static _Atomic uint32_t remote_stop_ms;
 static _Atomic int state, error_code;
 static _Atomic uint32_t current_epoch;
+static portMUX_TYPE status_lock = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t generation, meter_epoch, playback_ms, playback_poll_ms;
+static uint64_t meter_played;
+static audio_meter_t microphone_meter, speaker_meter;
+static bool playback_active;
 typedef struct {
     esp_websocket_client_handle_t ws;
     QueueHandle_t controls;
@@ -50,8 +56,41 @@ typedef struct {
 voice_status_t voice_client_status(void)
 {
     static const char *names[] = {"CONNECTING", "LISTENING", "SPEAKING", "STOPPING"};
-    return (voice_status_t){.active = atomic_load(&active), .error = atomic_load(&error_code),
-        .state = names[atomic_load(&state)]};
+    uint32_t now = (uint32_t)(esp_timer_get_time() / 1000);
+    portENTER_CRITICAL(&status_lock);
+    voice_status_t status = {.active = atomic_load(&active), .error = atomic_load(&error_code),
+        .state = names[atomic_load(&state)], .generation = generation};
+    if (status.active && !atomic_load(&stopping) && !atomic_load(&remote_stopping)) {
+        status.microphone_level = audio_meter_level(&microphone_meter, now);
+        status.playback_active = playback_active && now - playback_ms < 250;
+        if (status.playback_active) status.speaker_level = audio_meter_level(&speaker_meter, now);
+    }
+    portEXIT_CRITICAL(&status_lock);
+    return status;
+}
+static void reset_playback_meter(uint32_t epoch)
+{
+    portENTER_CRITICAL(&status_lock);
+    meter_epoch = epoch;
+    meter_played = 0;
+    playback_ms = playback_poll_ms = 0;
+    playback_active = false;
+    speaker_meter = (audio_meter_t){0};
+    portEXIT_CRITICAL(&status_lock);
+}
+static void observe_playback(void)
+{
+    uint32_t epoch = atomic_load(&current_epoch);
+    uint64_t played = epoch ? audio_voice_played(epoch) : 0;
+    uint32_t now = (uint32_t)(esp_timer_get_time() / 1000);
+    portENTER_CRITICAL(&status_lock);
+    if (epoch == meter_epoch && now - playback_poll_ms >= 100) {
+        playback_active = epoch && played > meter_played;
+        if (playback_active) playback_ms = now;
+        meter_played = played;
+        playback_poll_ms = now;
+    }
+    portEXIT_CRITICAL(&status_lock);
 }
 void voice_client_stop(void) { atomic_store(&stopping, true); }
 static bool draining_remote_stop(void)
@@ -111,6 +150,11 @@ static bool capture_once(voice_session_t *s)
         fail(ESP_ERR_NO_MEM);
         return false;
     }
+    uint8_t level = audio_meter_peak(microphone, PCM_SAMPLES);
+    uint32_t now = (uint32_t)(esp_timer_get_time() / 1000);
+    portENTER_CRITICAL(&status_lock);
+    audio_meter_observe(&microphone_meter, level, now);
+    portEXIT_CRITICAL(&status_lock);
     return true;
 }
 #ifndef RECORDER_HOST_TEST
@@ -180,6 +224,7 @@ static void control(voice_session_t *s)
             s->expected = (voice_frame_t){.kind = 2, .epoch = epoch};
             s->last_epoch = epoch;
             s->ended = false;
+            reset_playback_meter(epoch);
             atomic_store(&current_epoch, epoch);
         }
     } else if (!strcmp(type, "playback.clear")) {
@@ -189,6 +234,7 @@ static void control(voice_session_t *s)
         else {
             s->cleared_epoch = epoch;
             atomic_store(&current_epoch, 0);
+            reset_playback_meter(0);
             progress(s, epoch, played, true);
         }
     } else if (!strcmp(type, "playback.end")) {
@@ -215,6 +261,13 @@ static void binary(voice_session_t *s)
     memcpy(pcm, frame.pcm, frame.samples * 2);
     esp_err_t err = audio_voice_enqueue(frame.epoch, pcm, frame.samples);
     if (err != ESP_OK) fail(err);
+    else {
+        uint8_t level = audio_meter_peak(pcm, frame.samples);
+        uint32_t now = (uint32_t)(esp_timer_get_time() / 1000);
+        portENTER_CRITICAL(&status_lock);
+        if (meter_epoch == frame.epoch) audio_meter_observe(&speaker_meter, level, now);
+        portEXIT_CRITICAL(&status_lock);
+    }
 }
 static void received(voice_session_t *s, esp_websocket_event_data_t *event)
 {
@@ -315,6 +368,7 @@ static void conversation(void *unused)
     unsigned progress_tick = 0;
     while (!atomic_load(&stopping)) {
         if (draining_remote_stop()) continue;
+        observe_playback();
         send_pending(s);
         if (esp_timer_get_time() >= s->deadline) break;
 #ifdef RECORDER_HOST_TEST
@@ -369,7 +423,12 @@ static void conversation(void *unused)
 #endif
     free(s);
     ESP_LOGI("voice", "Cleanup complete");
+    portENTER_CRITICAL(&status_lock);
+    microphone_meter = (audio_meter_t){0};
+    speaker_meter = (audio_meter_t){0};
+    playback_active = false;
     atomic_store(&active, false);
+    portEXIT_CRITICAL(&status_lock);
     vTaskDelete(NULL);
 }
 esp_err_t voice_client_start(void)
@@ -378,11 +437,23 @@ esp_err_t voice_client_start(void)
     if (strncmp(url, "wss://", 6) || strchr(url, '@') || strchr(url, '?') || strchr(url, '#') ||
         !recorder_network_ready() || !recorder_time_valid()) return ESP_ERR_INVALID_STATE;
     bool expected = false;
-    if (!atomic_compare_exchange_strong(&active, &expected, true)) return ESP_ERR_INVALID_STATE;
+    portENTER_CRITICAL(&status_lock);
+    if (!atomic_compare_exchange_strong(&active, &expected, true)) {
+        portEXIT_CRITICAL(&status_lock);
+        return ESP_ERR_INVALID_STATE;
+    }
+    ++generation;
+    microphone_meter = (audio_meter_t){0};
+    speaker_meter = (audio_meter_t){0};
+    playback_active = false;
+    meter_epoch = 0;
+    meter_played = 0;
+    playback_ms = playback_poll_ms = 0;
     atomic_store(&stopping, false); atomic_store(&ready, false);
     atomic_store(&remote_stopping, false);
     atomic_store(&error_code, ESP_OK); atomic_store(&state, CONNECTING);
     atomic_store(&current_epoch, 0);
+    portEXIT_CRITICAL(&status_lock);
     if (xTaskCreate(conversation, "voice", 8192, NULL, 9, NULL) != pdPASS) {
         atomic_store(&active, false); return ESP_ERR_NO_MEM;
     }

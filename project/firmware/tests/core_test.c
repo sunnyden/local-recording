@@ -4,62 +4,57 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void wav_tests(void)
+static void ogg_opus_tests(void)
 {
-    uint8_t header[44];
-    assert(wav_header(header, 640));
-    assert(!wav_header(header, 3));
-    assert(!wav_header(header, UINT32_MAX));
-    FILE *f = fopen("core-test.wav", "wb+");
+    FILE *f = fopen("core-test.opus", "wb+");
     assert(f);
-    assert(wav_header(header, 640));
-    assert(fwrite(header, 1, 44, f) == 44);
-    uint8_t pcm[641] = {0};
-    assert(fwrite(pcm, 1, 640, f) == 640);
+    ogg_opus_writer_t writer;
+    assert(ogg_opus_writer_begin(&writer, f, 0x12345678, 312));
+    uint8_t packet[60] = {0x48};
+    for (unsigned i = 0; i < 51; ++i)
+        assert(ogg_opus_writer_packet(&writer, packet, sizeof(packet), PCM_SAMPLES));
     assert(!fflush(f));
-    wav_info_t info;
-    assert(wav_parse(f, &info));
-    assert(info.offset == 44 && info.bytes == 640);
-    assert(!wav_repair_limit(f, 642));
-    assert(!wav_repair_limit(f, 639));
-    assert(!fseek(f, 0, SEEK_SET));
-    wav_header(header, 0);
-    assert(fwrite(header, 1, 44, f) == 44);
-    assert(!fseek(f, 0, SEEK_END));
-    assert(fwrite(pcm, 1, 1, f) == 1);
-    assert(wav_repair(f));
-    assert(wav_parse(f, &info) && info.bytes == 640);
+    long safe = ftell(f);
+    uint32_t page = writer.last_page_offset;
+    assert(ogg_opus_writer_packet(&writer, packet, sizeof(packet), PCM_SAMPLES));
+    assert(safe > 0 && page > 0 &&
+           ogg_opus_writer_finish(&writer, 51 * PCM_SAMPLES));
+    assert(!fflush(f));
+    ogg_opus_info_t info;
+    assert(ogg_opus_parse(f, 0, true, &info));
+    assert(info.serial == 0x12345678 && info.samples == 51 * PCM_SAMPLES);
+    assert(info.pre_skip == 312 && info.eos);
     assert(!fseek(f, 22, SEEK_SET));
-    assert(fputc(2, f) == 2);
-    assert(!fflush(f));
-    assert(!wav_parse(f, &info));
-    assert(!wav_repair(f));
+    int byte = fgetc(f);
+    assert(byte != EOF && !fseek(f, 22, SEEK_SET) && fputc(byte ^ 1, f) != EOF);
+    assert(!fflush(f) && !ogg_opus_parse(f, 0, true, &info));
     fclose(f);
-    remove("core-test.wav");
-    uint8_t checkpoint[16];
-    uint32_t bytes = 0;
-    recording_checkpoint_encode(checkpoint, 640);
-    assert(recording_checkpoint_decode(checkpoint, &bytes) && bytes == 640);
-    for (unsigned i = 0; i < 16; ++i) {
+
+    f = fopen("core-repair.opus", "wb+");
+    assert(f && ogg_opus_writer_begin(&writer, f, 7, 312));
+    for (unsigned i = 0; i < 51; ++i)
+        assert(ogg_opus_writer_packet(&writer, packet, sizeof(packet), PCM_SAMPLES));
+    assert(!fflush(f));
+    safe = ftell(f); page = writer.last_page_offset;
+    assert(safe > 0 && ogg_opus_parse(f, (uint32_t)safe, false, &info));
+    assert(!info.eos && info.samples == 50 * PCM_SAMPLES - 104);
+    assert(ogg_opus_repair(f, (uint32_t)safe, page));
+    assert(ogg_opus_parse(f, 0, true, &info) &&
+           info.samples == 50 * PCM_SAMPLES - 104);
+    fclose(f);
+    remove("core-test.opus");
+    remove("core-repair.opus");
+
+    uint8_t checkpoint[24];
+    uint32_t bytes = 0, decoded_page = 0;
+    recording_checkpoint_encode(checkpoint, (uint32_t)safe, page);
+    assert(recording_checkpoint_decode(checkpoint, &bytes, &decoded_page));
+    assert(bytes == (uint32_t)safe && decoded_page == page);
+    for (unsigned i = 0; i < sizeof(checkpoint); ++i) {
         checkpoint[i] ^= 1;
-        assert(!recording_checkpoint_decode(checkpoint, &bytes));
+        assert(!recording_checkpoint_decode(checkpoint, &bytes, &decoded_page));
         checkpoint[i] ^= 1;
     }
-    f = fopen("core-test.wav", "wb+");
-    assert(f);
-    wav_header(header, 640);
-    header[4] = (640 + 48) & 255;
-    header[5] = (640 + 48) >> 8;
-    assert(fwrite(header, 1, 36, f) == 36);
-    const uint8_t junk[] = {'J','U','N','K',3,0,0,0,1,2,3,0};
-    assert(fwrite(junk, 1, sizeof(junk), f) == sizeof(junk));
-    assert(fwrite(header + 36, 1, 8, f) == 8);
-    assert(fwrite(pcm, 1, 640, f) == 640);
-    assert(!fflush(f));
-    assert(wav_parse(f, &info) && info.offset == 56 && info.bytes == 640);
-    assert(!wav_repair(f));
-    fclose(f);
-    remove("core-test.wav");
 }
 static void voice_tests(void)
 {
@@ -128,9 +123,9 @@ static void http_buffer_tests(void)
 
 int main(void)
 {
-    wav_tests();
+    ogg_opus_tests();
     voice_tests();
     http_buffer_tests();
-    puts("PASS: WAV creation/parser/recovery, voice framing/alignment, upload ranges");
+    puts("PASS: Ogg Opus creation/parser/recovery, voice framing/alignment, upload ranges");
     return 0;
 }

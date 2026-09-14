@@ -1,0 +1,4667 @@
+{
+  "schema": 1,
+  "generator": "tools/gui-assets/generate.mjs",
+  "toolchain": {
+    "node": "24.16.0",
+    "resvg": "2.6.2",
+    "fontkit": "2.0.4"
+  },
+  "inputs": {
+    "config.mjs": "24536550f5886fd0bf5149655f635ea319b6d3813a3777e194959b04f027b94e",
+    "generate.mjs": "6db7a7a5f4ae6201360533bd1c6161365dedb70049c38b2981c7005c1a4b27e6",
+    "package.json": "2ef744bacaba6ecd398d9564d08b865139f5ff581ee7513f039097f1c1e5c28d",
+    "package-lock.json": "7d2e22a67dbda28733a317f7cfdad987071550d51c67caa524ae604641a83522",
+    "sources.lock.json": "faff11b54b5c6862ad33e605fd698a1fe4feea637af8124d30842e0f0ad8cbfd"
+  },
+  "encoding": {
+    "rgb565": "Native uint16_t R5G6B5, straight (not premultiplied); hashes use little-endian uint16_t",
+    "alpha4": "Row-major continuous nibbles, high nibble first; odd final low nibble zero; no row padding",
+    "fontMetrics": "Integer advance; bitmap offsets relative to pen baseline; no runtime kerning"
+  },
+  "artworkBytes": {
+    "rgb565": 19936,
+    "alpha4": 13608,
+    "payload": 33544,
+    "tables32": 1080,
+    "symbols32": 34624,
+    "alignmentAllowance32": 12,
+    "budgeted32": 34636,
+    "limit": 49152
+  },
+  "fontBytes": {
+    "alpha4": 11951,
+    "payload": 11951,
+    "glyphTableEntries": 299,
+    "fontTableEntries": 4,
+    "tables32": 3620,
+    "symbols32": 15571,
+    "alignmentAllowance32": 12,
+    "budgeted32": 15583,
+    "limit": 24576
+  },
+  "sourceFont": {
+    "file": "font/NotoSans.ttf",
+    "sha256": "bfb7bb691513f12e734dc346c03a03f784912432d7e3fa8e56efcf906fe86b3d",
+    "license": "SIL-OFL-1.1"
+  },
+  "variants": [
+    {
+      "id": "GUI_ICON_COPILOT",
+      "size": 20,
+      "width": 20,
+      "height": 18,
+      "format": "RGB565+A4",
+      "alphaOffset": 0,
+      "rgbOffset": 0,
+      "alphaBytes": 180,
+      "rgbBytes": 720,
+      "pixelBytes": 900,
+      "pixelSha256": "56e3fd3ba0e6fb3cea4f048755a9ac811d5822b014e5b13aeb8c4190ac5329b7",
+      "source": "brands/copilot.svg",
+      "sourceSha256": "73b37aef50d1a1f8d8f9c58c8292ea61e72d62c95d01026de3e121a5a43566a5",
+      "viewBoxSize": [
+        23.898,
+        22
+      ],
+      "provenance": {
+        "kind": "user-provided",
+        "original": "reference/Microsoft_Copilot_Icon.svg",
+        "license": "No independent license declaration supplied; see PROVENANCE.md"
+      }
+    },
+    {
+      "id": "GUI_ICON_COPILOT",
+      "size": 32,
+      "width": 32,
+      "height": 29,
+      "format": "RGB565+A4",
+      "alphaOffset": 180,
+      "rgbOffset": 360,
+      "alphaBytes": 464,
+      "rgbBytes": 1856,
+      "pixelBytes": 2320,
+      "pixelSha256": "0509d0d276ae8cc1b31e0464658f7c3505efdaf4e898ae48f8c66f3ec445d88d",
+      "source": "brands/copilot.svg",
+      "sourceSha256": "73b37aef50d1a1f8d8f9c58c8292ea61e72d62c95d01026de3e121a5a43566a5",
+      "viewBoxSize": [
+        23.898,
+        22
+      ],
+      "provenance": {
+        "kind": "user-provided",
+        "original": "reference/Microsoft_Copilot_Icon.svg",
+        "license": "No independent license declaration supplied; see PROVENANCE.md"
+      }
+    },
+    {
+      "id": "GUI_ICON_COPILOT",
+      "size": 48,
+      "width": 48,
+      "height": 44,
+      "format": "RGB565+A4",
+      "alphaOffset": 644,
+      "rgbOffset": 1288,
+      "alphaBytes": 1056,
+      "rgbBytes": 4224,
+      "pixelBytes": 5280,
+      "pixelSha256": "f3eca3dc869fe3d135bab083e5fe94c2a74652a874b602d9a1068b4ca4807b0b",
+      "source": "brands/copilot.svg",
+      "sourceSha256": "73b37aef50d1a1f8d8f9c58c8292ea61e72d62c95d01026de3e121a5a43566a5",
+      "viewBoxSize": [
+        23.898,
+        22
+      ],
+      "provenance": {
+        "kind": "user-provided",
+        "original": "reference/Microsoft_Copilot_Icon.svg",
+        "license": "No independent license declaration supplied; see PROVENANCE.md"
+      }
+    },
+    {
+      "id": "GUI_ICON_ONEDRIVE",
+      "size": 16,
+      "width": 16,
+      "height": 11,
+      "format": "RGB565+A4",
+      "alphaOffset": 1700,
+      "rgbOffset": 3400,
+      "alphaBytes": 88,
+      "rgbBytes": 352,
+      "pixelBytes": 440,
+      "pixelSha256": "ab38bc194b5cad1de4e217e88b6c70ba13e84378badedfbf2a21711f410a5ded",
+      "source": "brands/onedrive.svg",
+      "sourceSha256": "197fb9f9c83c1e75c4887f6a243521a7703095623614f250b040484d481cbcb8",
+      "viewBoxSize": [
+        648.03,
+        430.85
+      ],
+      "provenance": {
+        "kind": "user-provided",
+        "original": "reference/Microsoft_OneDrive_Icon_(2025_-_present).svg",
+        "license": "No independent license declaration supplied; see PROVENANCE.md"
+      }
+    },
+    {
+      "id": "GUI_ICON_ONEDRIVE",
+      "size": 20,
+      "width": 20,
+      "height": 13,
+      "format": "RGB565+A4",
+      "alphaOffset": 1788,
+      "rgbOffset": 3576,
+      "alphaBytes": 130,
+      "rgbBytes": 520,
+      "pixelBytes": 650,
+      "pixelSha256": "677a6c72d0e45e85590bf72edf10ffcf2966e8b12a50c98c679f68cd39eb85f4",
+      "source": "brands/onedrive.svg",
+      "sourceSha256": "197fb9f9c83c1e75c4887f6a243521a7703095623614f250b040484d481cbcb8",
+      "viewBoxSize": [
+        648.03,
+        430.85
+      ],
+      "provenance": {
+        "kind": "user-provided",
+        "original": "reference/Microsoft_OneDrive_Icon_(2025_-_present).svg",
+        "license": "No independent license declaration supplied; see PROVENANCE.md"
+      }
+    },
+    {
+      "id": "GUI_ICON_ONEDRIVE",
+      "size": 32,
+      "width": 32,
+      "height": 21,
+      "format": "RGB565+A4",
+      "alphaOffset": 1918,
+      "rgbOffset": 3836,
+      "alphaBytes": 336,
+      "rgbBytes": 1344,
+      "pixelBytes": 1680,
+      "pixelSha256": "4ce9e247a066204b95b485cec6cdfcd1f72392724105b286b4986dccdbdd12e3",
+      "source": "brands/onedrive.svg",
+      "sourceSha256": "197fb9f9c83c1e75c4887f6a243521a7703095623614f250b040484d481cbcb8",
+      "viewBoxSize": [
+        648.03,
+        430.85
+      ],
+      "provenance": {
+        "kind": "user-provided",
+        "original": "reference/Microsoft_OneDrive_Icon_(2025_-_present).svg",
+        "license": "No independent license declaration supplied; see PROVENANCE.md"
+      }
+    },
+    {
+      "id": "GUI_ICON_EXPLORER",
+      "size": 20,
+      "width": 20,
+      "height": 20,
+      "format": "RGB565+A4",
+      "alphaOffset": 2254,
+      "rgbOffset": 4508,
+      "alphaBytes": 200,
+      "rgbBytes": 800,
+      "pixelBytes": 1000,
+      "pixelSha256": "374dc77c3b74dd719ea474ccbfb278ea60857dad2e19b2603b84ecbc4c3d4fa3",
+      "source": "brands/explorer.svg",
+      "sourceSha256": "b1eb0119d9daeb906f3d02cfd6b0ddabb6d5291a1caf5dde3b8f9fc8e706cbb0",
+      "viewBoxSize": [
+        252,
+        252
+      ],
+      "provenance": {
+        "kind": "user-provided",
+        "original": "reference/Windows_Explorer.svg",
+        "license": "No independent license declaration supplied; see PROVENANCE.md"
+      }
+    },
+    {
+      "id": "GUI_ICON_EXPLORER",
+      "size": 32,
+      "width": 32,
+      "height": 32,
+      "format": "RGB565+A4",
+      "alphaOffset": 2454,
+      "rgbOffset": 4908,
+      "alphaBytes": 512,
+      "rgbBytes": 2048,
+      "pixelBytes": 2560,
+      "pixelSha256": "61ff4be67e9b48b064bb23deeed09709aa315b1b2df4c824bfcd478e45dbbdb3",
+      "source": "brands/explorer.svg",
+      "sourceSha256": "b1eb0119d9daeb906f3d02cfd6b0ddabb6d5291a1caf5dde3b8f9fc8e706cbb0",
+      "viewBoxSize": [
+        252,
+        252
+      ],
+      "provenance": {
+        "kind": "user-provided",
+        "original": "reference/Windows_Explorer.svg",
+        "license": "No independent license declaration supplied; see PROVENANCE.md"
+      }
+    },
+    {
+      "id": "GUI_ICON_SETTINGS",
+      "size": 20,
+      "width": 20,
+      "height": 19,
+      "format": "RGB565+A4",
+      "alphaOffset": 2966,
+      "rgbOffset": 5932,
+      "alphaBytes": 190,
+      "rgbBytes": 760,
+      "pixelBytes": 950,
+      "pixelSha256": "b556eae24001956643159da3433cebcc21feb2b2c5846b9e1cea3bb7681a4720",
+      "source": "brands/settings.svg",
+      "sourceSha256": "85a0251400aca247330af75aaae761b058e971ff2a956954e17da3ac8798fcc8",
+      "viewBoxSize": [
+        204.18758,
+        191.4059
+      ],
+      "provenance": {
+        "kind": "user-provided",
+        "original": "reference/Windows_Settings_icon.svg",
+        "license": "No independent license declaration supplied; see PROVENANCE.md"
+      }
+    },
+    {
+      "id": "GUI_ICON_SETTINGS",
+      "size": 32,
+      "width": 32,
+      "height": 30,
+      "format": "RGB565+A4",
+      "alphaOffset": 3156,
+      "rgbOffset": 6312,
+      "alphaBytes": 480,
+      "rgbBytes": 1920,
+      "pixelBytes": 2400,
+      "pixelSha256": "1b5f4580101d4466aaa8d02b64b1fc6a4d6414bd68f9164b50d1f7b82d16ff4f",
+      "source": "brands/settings.svg",
+      "sourceSha256": "85a0251400aca247330af75aaae761b058e971ff2a956954e17da3ac8798fcc8",
+      "viewBoxSize": [
+        204.18758,
+        191.4059
+      ],
+      "provenance": {
+        "kind": "user-provided",
+        "original": "reference/Windows_Settings_icon.svg",
+        "license": "No independent license declaration supplied; see PROVENANCE.md"
+      }
+    },
+    {
+      "id": "GUI_ICON_MICROSOFT",
+      "size": 88,
+      "width": 88,
+      "height": 19,
+      "format": "RGB565+A4",
+      "alphaOffset": 3636,
+      "rgbOffset": 7272,
+      "alphaBytes": 836,
+      "rgbBytes": 3344,
+      "pixelBytes": 4180,
+      "pixelSha256": "a542dfb13a66467de16de9fdfd37e955c4628dcc0e052b7cffe3d26086b92492",
+      "source": "brands/microsoft.svg",
+      "sourceSha256": "34ec1619e4a62515d67c5240fe5762ef5a1838fe67d2fb1fb0b001099cebf1db",
+      "viewBoxSize": [
+        337.6,
+        72
+      ],
+      "provenance": {
+        "kind": "user-provided",
+        "original": "reference/Microsoft_logo_(2012).svg",
+        "license": "No independent license declaration supplied; see PROVENANCE.md"
+      }
+    },
+    {
+      "id": "GUI_ICON_MIC_COLOR",
+      "size": 32,
+      "width": 32,
+      "height": 32,
+      "format": "RGB565+A4",
+      "alphaOffset": 4472,
+      "rgbOffset": 8944,
+      "alphaBytes": 512,
+      "rgbBytes": 2048,
+      "pixelBytes": 2560,
+      "pixelSha256": "884263c0ac5e644f2e0574ed0255b46eb12a241a7d7706885b470f297b07fe27",
+      "source": "fluent/ic_fluent_mic_32_color.svg",
+      "sourceSha256": "5a2c73fcf49573af6e43f1a05c49eb54e9ff6c041ad349087c3690de9a364485",
+      "viewBoxSize": [
+        32,
+        32
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Mic/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_MIC",
+      "size": 16,
+      "width": 16,
+      "height": 16,
+      "format": "A4-mask",
+      "alphaOffset": 4984,
+      "rgbOffset": 9968,
+      "alphaBytes": 128,
+      "rgbBytes": 0,
+      "pixelBytes": 128,
+      "pixelSha256": "e66fbe16212a2a721ea13d38581add915b5948a14e798277975563a1856373a8",
+      "source": "fluent/ic_fluent_mic_16_regular.svg",
+      "sourceSha256": "b84736e0b948c3e5a75d847c303be035678ba31bf9abae87c8c83e2f53865e8c",
+      "viewBoxSize": [
+        16,
+        16
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Mic/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_MIC",
+      "size": 20,
+      "width": 20,
+      "height": 20,
+      "format": "A4-mask",
+      "alphaOffset": 5112,
+      "rgbOffset": 9968,
+      "alphaBytes": 200,
+      "rgbBytes": 0,
+      "pixelBytes": 200,
+      "pixelSha256": "c74afcb01331d75e28e873590849caf33da5529c3166fc795dd3143a3bdeded1",
+      "source": "fluent/ic_fluent_mic_20_regular.svg",
+      "sourceSha256": "e835bbb6dc2608c688f7540f221e87b6a9483eea0ec39cd315c33ff161180383",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Mic/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_MIC",
+      "size": 24,
+      "width": 24,
+      "height": 24,
+      "format": "A4-mask",
+      "alphaOffset": 5312,
+      "rgbOffset": 9968,
+      "alphaBytes": 288,
+      "rgbBytes": 0,
+      "pixelBytes": 288,
+      "pixelSha256": "7f4a4e2c94ae8751e51241c439d8acfea8167b01594421a5b79afaea8c227a82",
+      "source": "fluent/ic_fluent_mic_24_regular.svg",
+      "sourceSha256": "ea15a124e539fe19acc07a6c63ff1d91090a2bebd2b7f96f2903c52dbe156f07",
+      "viewBoxSize": [
+        24,
+        24
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Mic/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_RECORD",
+      "size": 16,
+      "width": 16,
+      "height": 16,
+      "format": "A4-mask",
+      "alphaOffset": 5600,
+      "rgbOffset": 9968,
+      "alphaBytes": 128,
+      "rgbBytes": 0,
+      "pixelBytes": 128,
+      "pixelSha256": "fb74a88b7f0799d2781faf5ca6cb3495f0aea51778aada04b30d9f32de694732",
+      "source": "fluent/ic_fluent_record_16_regular.svg",
+      "sourceSha256": "20faf62131b0a64bee22e91e8d8b048deca989bfb2cb216d20147d80645220ad",
+      "viewBoxSize": [
+        16,
+        16
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Record/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_RECORD",
+      "size": 20,
+      "width": 20,
+      "height": 20,
+      "format": "A4-mask",
+      "alphaOffset": 5728,
+      "rgbOffset": 9968,
+      "alphaBytes": 200,
+      "rgbBytes": 0,
+      "pixelBytes": 200,
+      "pixelSha256": "47da10e20168061030c60c76dac4360d274f09daf5434c62bd5691a3532f1b77",
+      "source": "fluent/ic_fluent_record_20_regular.svg",
+      "sourceSha256": "b5a64620b68fa979808358eef6cb62b6c1d4d3197cfcfae0d9445cec9bd460bc",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Record/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_RECORD",
+      "size": 24,
+      "width": 24,
+      "height": 24,
+      "format": "A4-mask",
+      "alphaOffset": 5928,
+      "rgbOffset": 9968,
+      "alphaBytes": 288,
+      "rgbBytes": 0,
+      "pixelBytes": 288,
+      "pixelSha256": "4549d71b489a82954f7b3b64c7dafcbd037d34e766827b51290fad5bcd8d822a",
+      "source": "fluent/ic_fluent_record_24_regular.svg",
+      "sourceSha256": "c3c2cb1842e45a36667fbfdc4719b5d43b41f989e32750919ddd21620691fd9d",
+      "viewBoxSize": [
+        24,
+        24
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Record/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_PLAY",
+      "size": 16,
+      "width": 16,
+      "height": 16,
+      "format": "A4-mask",
+      "alphaOffset": 6216,
+      "rgbOffset": 9968,
+      "alphaBytes": 128,
+      "rgbBytes": 0,
+      "pixelBytes": 128,
+      "pixelSha256": "b1120a24f07ed7966978912290a90befa6cf390ee55a1b22183adcb3af043945",
+      "source": "fluent/ic_fluent_play_16_regular.svg",
+      "sourceSha256": "ba97b2f0ef733c20b6c2b5625d6fadd1e0c135df2fda5e65beab2cd4171f08cf",
+      "viewBoxSize": [
+        16,
+        16
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Play/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_PLAY",
+      "size": 20,
+      "width": 20,
+      "height": 20,
+      "format": "A4-mask",
+      "alphaOffset": 6344,
+      "rgbOffset": 9968,
+      "alphaBytes": 200,
+      "rgbBytes": 0,
+      "pixelBytes": 200,
+      "pixelSha256": "eb5f9dd9f504fe64467ad6b7e2833e64fc37782164d80c99d1d73334c3be0f6c",
+      "source": "fluent/ic_fluent_play_20_regular.svg",
+      "sourceSha256": "25b14a02677385bb362939e5b1b604cf918e69689d3b83e75f51c3415aa2ca1b",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Play/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_PLAY",
+      "size": 24,
+      "width": 24,
+      "height": 24,
+      "format": "A4-mask",
+      "alphaOffset": 6544,
+      "rgbOffset": 9968,
+      "alphaBytes": 288,
+      "rgbBytes": 0,
+      "pixelBytes": 288,
+      "pixelSha256": "f18dae6cbe1c884a43a7da37b35a4560abd24bd41f67c9e9753ba00fcf21ce10",
+      "source": "fluent/ic_fluent_play_24_regular.svg",
+      "sourceSha256": "598bfa41e769736faf1642e242c0a04ebe254633a7cc5cf7318106254814c754",
+      "viewBoxSize": [
+        24,
+        24
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Play/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_STOP",
+      "size": 16,
+      "width": 16,
+      "height": 16,
+      "format": "A4-mask",
+      "alphaOffset": 6832,
+      "rgbOffset": 9968,
+      "alphaBytes": 128,
+      "rgbBytes": 0,
+      "pixelBytes": 128,
+      "pixelSha256": "d03abf8b2086eec62701ef380e163eefd1608da6c7b1f044acfa00e59a0078f7",
+      "source": "fluent/ic_fluent_stop_16_regular.svg",
+      "sourceSha256": "dabe146d7ac7aee785ffe82ba40d7db0b791f9edcb2f9dc40e4e81750580fa4c",
+      "viewBoxSize": [
+        16,
+        16
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Stop/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_STOP",
+      "size": 20,
+      "width": 20,
+      "height": 20,
+      "format": "A4-mask",
+      "alphaOffset": 6960,
+      "rgbOffset": 9968,
+      "alphaBytes": 200,
+      "rgbBytes": 0,
+      "pixelBytes": 200,
+      "pixelSha256": "d48b6b716163ff9ee6e2cc713334c890ad6bfb4230590f244705e320d7729374",
+      "source": "fluent/ic_fluent_stop_20_regular.svg",
+      "sourceSha256": "a500f8326c7877c1226bb7cd32b18a22eaf247adf959461814b7693571de3050",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Stop/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_STOP",
+      "size": 24,
+      "width": 24,
+      "height": 24,
+      "format": "A4-mask",
+      "alphaOffset": 7160,
+      "rgbOffset": 9968,
+      "alphaBytes": 288,
+      "rgbBytes": 0,
+      "pixelBytes": 288,
+      "pixelSha256": "b984500f22ba729035f6189daaded1e9f82dd85f3ac2803b9ba1733ef9738011",
+      "source": "fluent/ic_fluent_stop_24_regular.svg",
+      "sourceSha256": "befe0e83a83ca07345925263f46ab2cadde543a11f4eea541e8853190380de2b",
+      "viewBoxSize": [
+        24,
+        24
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Stop/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_SYNC",
+      "size": 16,
+      "width": 16,
+      "height": 16,
+      "format": "A4-mask",
+      "alphaOffset": 7448,
+      "rgbOffset": 9968,
+      "alphaBytes": 128,
+      "rgbBytes": 0,
+      "pixelBytes": 128,
+      "pixelSha256": "b7fc5302c70c5d213d2cabde594644799e5feb32062c47034d013e3bb318c086",
+      "source": "fluent/ic_fluent_arrow_sync_16_regular.svg",
+      "sourceSha256": "84221e38991724099a6df4ca0522530b5223cf20028935a4ada12d65197642a2",
+      "viewBoxSize": [
+        16,
+        16
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Arrow%20Sync/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_SYNC",
+      "size": 20,
+      "width": 20,
+      "height": 20,
+      "format": "A4-mask",
+      "alphaOffset": 7576,
+      "rgbOffset": 9968,
+      "alphaBytes": 200,
+      "rgbBytes": 0,
+      "pixelBytes": 200,
+      "pixelSha256": "9f8d6ed29d7d630995921be76b70471d7e3ec2710a5a6913b41fefb452fece94",
+      "source": "fluent/ic_fluent_arrow_sync_20_regular.svg",
+      "sourceSha256": "ef2c8e23d0a70faa677b4ef732030df69efcd74612f551b3601abe55906c08bd",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Arrow%20Sync/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_SYNC",
+      "size": 24,
+      "width": 24,
+      "height": 24,
+      "format": "A4-mask",
+      "alphaOffset": 7776,
+      "rgbOffset": 9968,
+      "alphaBytes": 288,
+      "rgbBytes": 0,
+      "pixelBytes": 288,
+      "pixelSha256": "cec360df5b654fad3d03ce61043696ff67d4053c0150216d8d197551c4ecd67b",
+      "source": "fluent/ic_fluent_arrow_sync_24_regular.svg",
+      "sourceSha256": "335f10b5e955ab19116bceea8910dc2c41279f00eff3e3310a78f0a9897b502d",
+      "viewBoxSize": [
+        24,
+        24
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Arrow%20Sync/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_WIFI",
+      "size": 16,
+      "width": 16,
+      "height": 16,
+      "format": "A4-mask",
+      "alphaOffset": 8064,
+      "rgbOffset": 9968,
+      "alphaBytes": 128,
+      "rgbBytes": 0,
+      "pixelBytes": 128,
+      "pixelSha256": "87de598e066658b77afaeb639d19c11e90752d63ee6fd5d0706f229749279980",
+      "source": "fluent/ic_fluent_wifi_1_20_regular.svg",
+      "sourceSha256": "6390ca82c730b162c67d8124671d6f341eb94ca0b0480d7c741b02bba823579c",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/WiFi%201/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_WIFI",
+      "size": 20,
+      "width": 20,
+      "height": 20,
+      "format": "A4-mask",
+      "alphaOffset": 8192,
+      "rgbOffset": 9968,
+      "alphaBytes": 200,
+      "rgbBytes": 0,
+      "pixelBytes": 200,
+      "pixelSha256": "849ab8333e30fe8f229c871d5f2d44b644e88edfa971fa57aff8d18c87557385",
+      "source": "fluent/ic_fluent_wifi_1_20_regular.svg",
+      "sourceSha256": "6390ca82c730b162c67d8124671d6f341eb94ca0b0480d7c741b02bba823579c",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/WiFi%201/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_WIFI",
+      "size": 24,
+      "width": 24,
+      "height": 24,
+      "format": "A4-mask",
+      "alphaOffset": 8392,
+      "rgbOffset": 9968,
+      "alphaBytes": 288,
+      "rgbBytes": 0,
+      "pixelBytes": 288,
+      "pixelSha256": "5b6c0fc80f396237fc7a3e81a1f8f48a0070aacd6616226a91243dd3fbeae625",
+      "source": "fluent/ic_fluent_wifi_1_24_regular.svg",
+      "sourceSha256": "40ce8d6e4a51283a5b5225acd2191399cbb129b09cba80bcd1e6aa6ccd1cad86",
+      "viewBoxSize": [
+        24,
+        24
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/WiFi%201/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_WIFI_OFF",
+      "size": 16,
+      "width": 16,
+      "height": 16,
+      "format": "A4-mask",
+      "alphaOffset": 8680,
+      "rgbOffset": 9968,
+      "alphaBytes": 128,
+      "rgbBytes": 0,
+      "pixelBytes": 128,
+      "pixelSha256": "6afb8c0b6e16fa373f2456551481b5aa449c5392b932970a6305c2deb3ca4bd0",
+      "source": "fluent/ic_fluent_wifi_off_20_regular.svg",
+      "sourceSha256": "2efd840efffe248f11924e683908282f2e7b75106cb8d18fe5d96c0d5d1d3a62",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/WiFi%20Off/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_WIFI_OFF",
+      "size": 20,
+      "width": 20,
+      "height": 20,
+      "format": "A4-mask",
+      "alphaOffset": 8808,
+      "rgbOffset": 9968,
+      "alphaBytes": 200,
+      "rgbBytes": 0,
+      "pixelBytes": 200,
+      "pixelSha256": "ec80d57db9790eb170d8f9cadac4334842cdc36456ebb2ca51172e9c7aa185ac",
+      "source": "fluent/ic_fluent_wifi_off_20_regular.svg",
+      "sourceSha256": "2efd840efffe248f11924e683908282f2e7b75106cb8d18fe5d96c0d5d1d3a62",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/WiFi%20Off/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_WIFI_OFF",
+      "size": 24,
+      "width": 24,
+      "height": 24,
+      "format": "A4-mask",
+      "alphaOffset": 9008,
+      "rgbOffset": 9968,
+      "alphaBytes": 288,
+      "rgbBytes": 0,
+      "pixelBytes": 288,
+      "pixelSha256": "db9281c4c711ba96f9a4dc24cb0d567fa9b274a095a43c3b5db73866b2fc8f59",
+      "source": "fluent/ic_fluent_wifi_off_24_regular.svg",
+      "sourceSha256": "503ebbe87766a6f0b0a5c85abec479a679549e72a910dd89d9478f35562d36dc",
+      "viewBoxSize": [
+        24,
+        24
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/WiFi%20Off/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_CHECK",
+      "size": 16,
+      "width": 16,
+      "height": 16,
+      "format": "A4-mask",
+      "alphaOffset": 9296,
+      "rgbOffset": 9968,
+      "alphaBytes": 128,
+      "rgbBytes": 0,
+      "pixelBytes": 128,
+      "pixelSha256": "a6f6fc9060f79b3e501966ceabe4111f8d086d9596e0890b6af208e53a811f17",
+      "source": "fluent/ic_fluent_checkmark_circle_16_regular.svg",
+      "sourceSha256": "d17edbe38fe83bdf5d423e268329905af722cceb914479de8e08697efb834a8d",
+      "viewBoxSize": [
+        16,
+        16
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Checkmark%20Circle/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_CHECK",
+      "size": 20,
+      "width": 20,
+      "height": 20,
+      "format": "A4-mask",
+      "alphaOffset": 9424,
+      "rgbOffset": 9968,
+      "alphaBytes": 200,
+      "rgbBytes": 0,
+      "pixelBytes": 200,
+      "pixelSha256": "f27be576217b304a6d67ca67bc41d319b93b4035052f76ec84bf64cf6090b49c",
+      "source": "fluent/ic_fluent_checkmark_circle_20_regular.svg",
+      "sourceSha256": "eb8b0a430560627251540a618eaa1487ecce36aaff1e7bdcd1a88e2b5a466a9c",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Checkmark%20Circle/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_CHECK",
+      "size": 24,
+      "width": 24,
+      "height": 24,
+      "format": "A4-mask",
+      "alphaOffset": 9624,
+      "rgbOffset": 9968,
+      "alphaBytes": 288,
+      "rgbBytes": 0,
+      "pixelBytes": 288,
+      "pixelSha256": "5622597aa0d062fe0d7afdfb85efc0a9926cb30f8526f5fcdc5399a128487ae4",
+      "source": "fluent/ic_fluent_checkmark_circle_24_regular.svg",
+      "sourceSha256": "49f1b34cd1ba129fcccfb722bbc0ce7b0df8d304845b4a8ee31dda8e9df3cf00",
+      "viewBoxSize": [
+        24,
+        24
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Checkmark%20Circle/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_WARNING",
+      "size": 16,
+      "width": 16,
+      "height": 16,
+      "format": "A4-mask",
+      "alphaOffset": 9912,
+      "rgbOffset": 9968,
+      "alphaBytes": 128,
+      "rgbBytes": 0,
+      "pixelBytes": 128,
+      "pixelSha256": "43eed409aa6ade2c7dcaa5c902eaf13f35f58d274a96d8561e3293569ca86568",
+      "source": "fluent/ic_fluent_warning_16_regular.svg",
+      "sourceSha256": "d4c17a82a8d44d898460fb4d220713a032a91b4bfec5cc0e98213009b8822768",
+      "viewBoxSize": [
+        16,
+        16
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Warning/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_WARNING",
+      "size": 20,
+      "width": 20,
+      "height": 20,
+      "format": "A4-mask",
+      "alphaOffset": 10040,
+      "rgbOffset": 9968,
+      "alphaBytes": 200,
+      "rgbBytes": 0,
+      "pixelBytes": 200,
+      "pixelSha256": "b2cb6bc9eefe7d18899baeb60b928968599506e5087b060856ba2df56500d662",
+      "source": "fluent/ic_fluent_warning_20_regular.svg",
+      "sourceSha256": "66f0977f0faea04e86885eb08a333716b13e26e3e04c89034f051f51ca386c80",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Warning/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_WARNING",
+      "size": 24,
+      "width": 24,
+      "height": 24,
+      "format": "A4-mask",
+      "alphaOffset": 10240,
+      "rgbOffset": 9968,
+      "alphaBytes": 288,
+      "rgbBytes": 0,
+      "pixelBytes": 288,
+      "pixelSha256": "9af00e3214b46d539a6a1997cd889a35849485536b05db2c4b485e404fe80e0a",
+      "source": "fluent/ic_fluent_warning_24_regular.svg",
+      "sourceSha256": "bd6b7fa53e0393c724e5c970c7d9b203fe4ce7c3795b6daf2b44440a0ec3f725",
+      "viewBoxSize": [
+        24,
+        24
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Warning/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_SPEAKER",
+      "size": 16,
+      "width": 16,
+      "height": 16,
+      "format": "A4-mask",
+      "alphaOffset": 10528,
+      "rgbOffset": 9968,
+      "alphaBytes": 128,
+      "rgbBytes": 0,
+      "pixelBytes": 128,
+      "pixelSha256": "c5649f3165cdfa6deddfdcb32ec6a14d128262ef5fcbc9f7ca965a1fd9f48b83",
+      "source": "fluent/ic_fluent_speaker_2_16_regular.svg",
+      "sourceSha256": "e94b0fc1e27a1db8b3a0f396faddd90fa72b11b1183bc40649e759ceed87914b",
+      "viewBoxSize": [
+        16,
+        16
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Speaker%202/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_SPEAKER",
+      "size": 20,
+      "width": 20,
+      "height": 20,
+      "format": "A4-mask",
+      "alphaOffset": 10656,
+      "rgbOffset": 9968,
+      "alphaBytes": 200,
+      "rgbBytes": 0,
+      "pixelBytes": 200,
+      "pixelSha256": "c0a6fc9986a31decd84e4c746f4d95e33673f91499787aca624254c443b201be",
+      "source": "fluent/ic_fluent_speaker_2_20_regular.svg",
+      "sourceSha256": "85d6178fb9912ab6ea7bb434c422ddbc409b631fff38624c8a2e5cbe1328306b",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Speaker%202/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_SPEAKER",
+      "size": 24,
+      "width": 24,
+      "height": 24,
+      "format": "A4-mask",
+      "alphaOffset": 10856,
+      "rgbOffset": 9968,
+      "alphaBytes": 288,
+      "rgbBytes": 0,
+      "pixelBytes": 288,
+      "pixelSha256": "acfb03e2a734766d96ff45305491ce8bb8aa58ef0e80ba0cd35bb9fb375b1def",
+      "source": "fluent/ic_fluent_speaker_2_24_regular.svg",
+      "sourceSha256": "e98eb2eb9051fd1f3190d48fb09396fcf34fa62f70e6807cdf273deed1ecfcfb",
+      "viewBoxSize": [
+        24,
+        24
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Speaker%202/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_DOCUMENT",
+      "size": 16,
+      "width": 16,
+      "height": 16,
+      "format": "A4-mask",
+      "alphaOffset": 11144,
+      "rgbOffset": 9968,
+      "alphaBytes": 128,
+      "rgbBytes": 0,
+      "pixelBytes": 128,
+      "pixelSha256": "131a2f1cc29a479b2ce9f43a715a3a4e7d770751c520e45701b8e829ee2d865b",
+      "source": "fluent/ic_fluent_document_text_16_regular.svg",
+      "sourceSha256": "6379a393b0d7be391b5993ea194b2ec311e4f03986b038b1f500da294ba69329",
+      "viewBoxSize": [
+        16,
+        16
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Document%20Text/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_DOCUMENT",
+      "size": 20,
+      "width": 20,
+      "height": 20,
+      "format": "A4-mask",
+      "alphaOffset": 11272,
+      "rgbOffset": 9968,
+      "alphaBytes": 200,
+      "rgbBytes": 0,
+      "pixelBytes": 200,
+      "pixelSha256": "3efc19643daf58c241fd00243fc4eff7ee137c7c16cdde9b9854347e75e49ca6",
+      "source": "fluent/ic_fluent_document_text_20_regular.svg",
+      "sourceSha256": "9e0e80637fd19c0ac45c2058ccd8dcc4fa8a1e647bfa54ae8a480bf6c2d5e844",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Document%20Text/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_DOCUMENT",
+      "size": 24,
+      "width": 24,
+      "height": 24,
+      "format": "A4-mask",
+      "alphaOffset": 11472,
+      "rgbOffset": 9968,
+      "alphaBytes": 288,
+      "rgbBytes": 0,
+      "pixelBytes": 288,
+      "pixelSha256": "6d3f8e08bc0c4c49ca8d0c6f1feb365c1e279284109d0e9402f5d4eefbcd4312",
+      "source": "fluent/ic_fluent_document_text_24_regular.svg",
+      "sourceSha256": "5f4f9dba0ed8ce1c2ba461a7b5fe88cf7c0119e07b240e627ab7818d2eeb93b8",
+      "viewBoxSize": [
+        24,
+        24
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Document%20Text/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_BACK",
+      "size": 16,
+      "width": 16,
+      "height": 16,
+      "format": "A4-mask",
+      "alphaOffset": 11760,
+      "rgbOffset": 9968,
+      "alphaBytes": 128,
+      "rgbBytes": 0,
+      "pixelBytes": 128,
+      "pixelSha256": "bca699d0d8b744f32365fce7cd299da49dfc70ab88f7735b7329f99235a988c5",
+      "source": "fluent/ic_fluent_chevron_left_16_regular.svg",
+      "sourceSha256": "fc1fc33920f1fc474996d35cfdf24dcb7771a626fa06644a1c18ea9998a6aa6c",
+      "viewBoxSize": [
+        16,
+        16
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Chevron%20Left/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_BACK",
+      "size": 20,
+      "width": 20,
+      "height": 20,
+      "format": "A4-mask",
+      "alphaOffset": 11888,
+      "rgbOffset": 9968,
+      "alphaBytes": 200,
+      "rgbBytes": 0,
+      "pixelBytes": 200,
+      "pixelSha256": "2bfc7fbfc49717040e7bce3d0c7f9b3d6c00a715f33242736627cd8e40178f91",
+      "source": "fluent/ic_fluent_chevron_left_20_regular.svg",
+      "sourceSha256": "788334dab29b6f756908bcae230837590949d7074430451b6809444bf8f13ef0",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Chevron%20Left/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_BACK",
+      "size": 24,
+      "width": 24,
+      "height": 24,
+      "format": "A4-mask",
+      "alphaOffset": 12088,
+      "rgbOffset": 9968,
+      "alphaBytes": 288,
+      "rgbBytes": 0,
+      "pixelBytes": 288,
+      "pixelSha256": "23f6f994bf9a94584ec55ce7a9b88fab9047c7e695b76f658fd8da175d76f267",
+      "source": "fluent/ic_fluent_chevron_left_24_regular.svg",
+      "sourceSha256": "cf6f918ec7dbbd4c223c8e89c3010bbf7220c1b9fb07888d57033329f5f88e4a",
+      "viewBoxSize": [
+        24,
+        24
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Chevron%20Left/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_UP",
+      "size": 16,
+      "width": 16,
+      "height": 16,
+      "format": "A4-mask",
+      "alphaOffset": 12376,
+      "rgbOffset": 9968,
+      "alphaBytes": 128,
+      "rgbBytes": 0,
+      "pixelBytes": 128,
+      "pixelSha256": "2b36e7a2b73b2046fa0aa0ecd9d9fa890924f9467d7f75bb021d7b09a6d2d2c7",
+      "source": "fluent/ic_fluent_chevron_up_16_regular.svg",
+      "sourceSha256": "48c3e88ee81738465acb2de54e3a9402ebbb614966521f6b8aa44546a8f02f0f",
+      "viewBoxSize": [
+        16,
+        16
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Chevron%20Up/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_UP",
+      "size": 20,
+      "width": 20,
+      "height": 20,
+      "format": "A4-mask",
+      "alphaOffset": 12504,
+      "rgbOffset": 9968,
+      "alphaBytes": 200,
+      "rgbBytes": 0,
+      "pixelBytes": 200,
+      "pixelSha256": "28d843e191506ea3c52e54464b7560aa5ae410f9e1e55cd34154d73009e92917",
+      "source": "fluent/ic_fluent_chevron_up_20_regular.svg",
+      "sourceSha256": "2008c692de1ef53426273909aa6d032e98570191ab3737152e682bf21d43505f",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Chevron%20Up/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_UP",
+      "size": 24,
+      "width": 24,
+      "height": 24,
+      "format": "A4-mask",
+      "alphaOffset": 12704,
+      "rgbOffset": 9968,
+      "alphaBytes": 288,
+      "rgbBytes": 0,
+      "pixelBytes": 288,
+      "pixelSha256": "b9134058f15531cb20b5cc148a90839fb8f20beafae8fc27177f3abaee397fc7",
+      "source": "fluent/ic_fluent_chevron_up_24_regular.svg",
+      "sourceSha256": "e9d2f629dcd36ba18dd705242ee7f20d528cf8d5d6c66ac6b480f5c9c8d98c64",
+      "viewBoxSize": [
+        24,
+        24
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Chevron%20Up/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_DOWN",
+      "size": 16,
+      "width": 16,
+      "height": 16,
+      "format": "A4-mask",
+      "alphaOffset": 12992,
+      "rgbOffset": 9968,
+      "alphaBytes": 128,
+      "rgbBytes": 0,
+      "pixelBytes": 128,
+      "pixelSha256": "367453d6a21c4c15a8a83b6b9afbb15c52434d01f37ecb694a50772d5bc014fb",
+      "source": "fluent/ic_fluent_chevron_down_16_regular.svg",
+      "sourceSha256": "fdfec096fc9d942e562f02082eae908602d902338e4b3afaac3544b32084e2f3",
+      "viewBoxSize": [
+        16,
+        16
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Chevron%20Down/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_DOWN",
+      "size": 20,
+      "width": 20,
+      "height": 20,
+      "format": "A4-mask",
+      "alphaOffset": 13120,
+      "rgbOffset": 9968,
+      "alphaBytes": 200,
+      "rgbBytes": 0,
+      "pixelBytes": 200,
+      "pixelSha256": "e8fb38b7f48cabe846e61c22f3ddfbca0a96e47d655b908790c50dba19d163bf",
+      "source": "fluent/ic_fluent_chevron_down_20_regular.svg",
+      "sourceSha256": "9004843957bb4a6fe88444e1c68d35a032b05b3320c7f89c181d332ec764b966",
+      "viewBoxSize": [
+        20,
+        20
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Chevron%20Down/SVG"
+      }
+    },
+    {
+      "id": "GUI_ICON_DOWN",
+      "size": 24,
+      "width": 24,
+      "height": 24,
+      "format": "A4-mask",
+      "alphaOffset": 13320,
+      "rgbOffset": 9968,
+      "alphaBytes": 288,
+      "rgbBytes": 0,
+      "pixelBytes": 288,
+      "pixelSha256": "b9fab781d7d7530c8d66a077ac992a129941c9328600123479951b1f4842c184",
+      "source": "fluent/ic_fluent_chevron_down_24_regular.svg",
+      "sourceSha256": "3cd16b278e8e60438377f5861e70c41ff28573f31996602c29decf69ad73839b",
+      "viewBoxSize": [
+        24,
+        24
+      ],
+      "provenance": {
+        "kind": "Fluent system icons",
+        "license": "MIT",
+        "upstream": "https://github.com/microsoft/fluentui-system-icons/tree/main/assets/Chevron%20Down/SVG"
+      }
+    }
+  ],
+  "fonts": [
+    {
+      "id": "HINT",
+      "pixels": 11,
+      "weight": 400,
+      "first": 32,
+      "last": 126,
+      "fallback": 63,
+      "baseline": 9,
+      "height": 12,
+      "glyphs": [
+        {
+          "character": 32,
+          "width": 0,
+          "height": 0,
+          "advance": 3,
+          "offsetX": 0,
+          "offsetY": 0,
+          "alphaOffset": 0,
+          "alphaBytes": 0,
+          "pixelSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "character": 33,
+          "width": 3,
+          "height": 9,
+          "advance": 3,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 0,
+          "alphaBytes": 14,
+          "pixelSha256": "2b12bb49e3c612560f9cd73be307b6cd5d7c47bc2340d9248db2ad6899a5faa4"
+        },
+        {
+          "character": 34,
+          "width": 4,
+          "height": 3,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 14,
+          "alphaBytes": 6,
+          "pixelSha256": "981232e8a786bb13aa41b0ee116e5c6db1780647a7038d85afc2a2cb8246c535"
+        },
+        {
+          "character": 35,
+          "width": 7,
+          "height": 8,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 20,
+          "alphaBytes": 28,
+          "pixelSha256": "1ab60b28b4aba74c8c581efff0b7f7187c8d0a26729363108201dd81360396f7"
+        },
+        {
+          "character": 36,
+          "width": 6,
+          "height": 10,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 48,
+          "alphaBytes": 30,
+          "pixelSha256": "d49f47a1e288eeac9cea6207a0179bf3df87379266a71668ed99163355aa081c"
+        },
+        {
+          "character": 37,
+          "width": 9,
+          "height": 9,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 78,
+          "alphaBytes": 41,
+          "pixelSha256": "526344b6b06bf3dc9caa963e137c9cc4cd6dd8ff327ecbdcc11269327247a04e"
+        },
+        {
+          "character": 38,
+          "width": 9,
+          "height": 9,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 119,
+          "alphaBytes": 41,
+          "pixelSha256": "891608ff55d2761a2fb32ca242df61207d72fc2820c8236d42950f1d526f7856"
+        },
+        {
+          "character": 39,
+          "width": 2,
+          "height": 3,
+          "advance": 2,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 160,
+          "alphaBytes": 3,
+          "pixelSha256": "1006f5e8e0d7b23fcc5d1e27e20ee6ff5289ec36e5a1a34e2e6c6014cfa494bb"
+        },
+        {
+          "character": 40,
+          "width": 3,
+          "height": 10,
+          "advance": 3,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 163,
+          "alphaBytes": 15,
+          "pixelSha256": "6304f3fe242dd38dd5929c5311fe884ce22e2a0f88fed635d0b252921df10617"
+        },
+        {
+          "character": 41,
+          "width": 3,
+          "height": 10,
+          "advance": 3,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 178,
+          "alphaBytes": 15,
+          "pixelSha256": "860f74d5e88ee8a1ab9fca3cf173c40ccc3fde79fd32f41f808efe201aa07501"
+        },
+        {
+          "character": 42,
+          "width": 6,
+          "height": 6,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 193,
+          "alphaBytes": 18,
+          "pixelSha256": "337de96e072d5aec2443ff8a616888199649e4887402c7cd3c3b53ace2c5a6eb"
+        },
+        {
+          "character": 43,
+          "width": 6,
+          "height": 6,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 211,
+          "alphaBytes": 18,
+          "pixelSha256": "9ff00fbaf6d0b3b3e40d65e9b4168e2879ca1a636cccdb0f203529f65c17b0ac"
+        },
+        {
+          "character": 44,
+          "width": 3,
+          "height": 4,
+          "advance": 3,
+          "offsetX": 0,
+          "offsetY": -2,
+          "alphaOffset": 229,
+          "alphaBytes": 6,
+          "pixelSha256": "175e6b1c35f03a6c9d1036de802a3bb51bdf3715dcfb877b0270ab812708636b"
+        },
+        {
+          "character": 45,
+          "width": 4,
+          "height": 2,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -4,
+          "alphaOffset": 235,
+          "alphaBytes": 4,
+          "pixelSha256": "5865f54edd96b77715443f570dae15cceca89068cc9fa9755cb47467926091ab"
+        },
+        {
+          "character": 46,
+          "width": 3,
+          "height": 3,
+          "advance": 3,
+          "offsetX": 0,
+          "offsetY": -2,
+          "alphaOffset": 239,
+          "alphaBytes": 5,
+          "pixelSha256": "33d59e281748776e53c9fda13f8b75028236894d26f587205edd95f2788afbdc"
+        },
+        {
+          "character": 47,
+          "width": 4,
+          "height": 8,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 244,
+          "alphaBytes": 16,
+          "pixelSha256": "7ad61e4f633414d11e65a369bebb944f68aff1c44e9f92ba74cf9c0a9018599c"
+        },
+        {
+          "character": 48,
+          "width": 6,
+          "height": 9,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 260,
+          "alphaBytes": 27,
+          "pixelSha256": "69b0f69821e1c03417a8a391772bef5902e437ce84ed35e97bca97dc70c67e23"
+        },
+        {
+          "character": 49,
+          "width": 4,
+          "height": 8,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 287,
+          "alphaBytes": 16,
+          "pixelSha256": "82fd34e83bd306d5e1df0804dd9c64bfe599d1ca2bae6a8de7c6d0028b1f0b6e"
+        },
+        {
+          "character": 50,
+          "width": 6,
+          "height": 8,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 303,
+          "alphaBytes": 24,
+          "pixelSha256": "a87a55d5fe7a8e63a445faa0df5bd84797bfc9cc0dcf0ba421d64094d2a7d61c"
+        },
+        {
+          "character": 51,
+          "width": 6,
+          "height": 9,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 327,
+          "alphaBytes": 27,
+          "pixelSha256": "b8fb453e36719bbc705653826462baaa2152b10892d08252633192c25e589038"
+        },
+        {
+          "character": 52,
+          "width": 7,
+          "height": 8,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 354,
+          "alphaBytes": 28,
+          "pixelSha256": "879598609f9dd564802b43c94e75e633c6c6d1ed701ad12ca65a350c01eb47fa"
+        },
+        {
+          "character": 53,
+          "width": 6,
+          "height": 9,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 382,
+          "alphaBytes": 27,
+          "pixelSha256": "c7c9f6e5cce9567f081b9b73ffacd1bad2f561025263c802697e1f482311c4e5"
+        },
+        {
+          "character": 54,
+          "width": 6,
+          "height": 9,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 409,
+          "alphaBytes": 27,
+          "pixelSha256": "786dbc5600bfe02caa287a51650cdece0d39e312fd02d7f814cb9785feeecb91"
+        },
+        {
+          "character": 55,
+          "width": 6,
+          "height": 8,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 436,
+          "alphaBytes": 24,
+          "pixelSha256": "70c8a988f5b5dd0a5220a27384795622563e55bcca4df11d01de8c8bd39d7d5c"
+        },
+        {
+          "character": 56,
+          "width": 6,
+          "height": 9,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 460,
+          "alphaBytes": 27,
+          "pixelSha256": "890b4315bda08b94a9571779fa1f783b9f8bbcb1a3cc82ad6a5451e4d3ea2668"
+        },
+        {
+          "character": 57,
+          "width": 6,
+          "height": 9,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 487,
+          "alphaBytes": 27,
+          "pixelSha256": "ba1e6859ad872c8504bf35ce8f48c3a08cc90d72321922f6c952ba358bc6e1d2"
+        },
+        {
+          "character": 58,
+          "width": 3,
+          "height": 8,
+          "advance": 3,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 514,
+          "alphaBytes": 12,
+          "pixelSha256": "01348ea9579b251142a98c90a467413dd135b69ea280d58e83de11aeb07fa07d"
+        },
+        {
+          "character": 59,
+          "width": 3,
+          "height": 9,
+          "advance": 3,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 526,
+          "alphaBytes": 14,
+          "pixelSha256": "3a4a3b7171fd7194d8a085c7c5216d1cd6b247fc31cc9ca930d5993c34926ac1"
+        },
+        {
+          "character": 60,
+          "width": 6,
+          "height": 6,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 540,
+          "alphaBytes": 18,
+          "pixelSha256": "f2206ebe326fb88954ae60474dcd2a1e75fec3814407c75f7483c9309939807a"
+        },
+        {
+          "character": 61,
+          "width": 6,
+          "height": 4,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -6,
+          "alphaOffset": 558,
+          "alphaBytes": 12,
+          "pixelSha256": "b8d804bec2d7a83228e43a5ccbc9623b328dd4980bbfc38b30a457b4d87444e2"
+        },
+        {
+          "character": 62,
+          "width": 6,
+          "height": 6,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 570,
+          "alphaBytes": 18,
+          "pixelSha256": "7c91bfefcc267444a591b8b130bb2bc39c312235bc3249dbc427e97d53e6daf4"
+        },
+        {
+          "character": 63,
+          "width": 5,
+          "height": 9,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 588,
+          "alphaBytes": 23,
+          "pixelSha256": "02bcc45368608540773d9d63bd30ad5f2d9c377c67c9a97d3db52ab47a3ba91f"
+        },
+        {
+          "character": 64,
+          "width": 10,
+          "height": 9,
+          "advance": 10,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 611,
+          "alphaBytes": 45,
+          "pixelSha256": "62917f1c2ca9ee13735814c00ee88a76675c4e6e14bc91078a3decf093d0a076"
+        },
+        {
+          "character": 65,
+          "width": 8,
+          "height": 8,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 656,
+          "alphaBytes": 32,
+          "pixelSha256": "729d98f776a46f49d791fd3a8da73ea88684d3a52f46d9dfc0d45965292720f2"
+        },
+        {
+          "character": 66,
+          "width": 6,
+          "height": 8,
+          "advance": 7,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 688,
+          "alphaBytes": 24,
+          "pixelSha256": "c8e689488ce6f5e6f4e008ec126f687562d7a59e86035ffd168a95a57920fb44"
+        },
+        {
+          "character": 67,
+          "width": 7,
+          "height": 9,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 712,
+          "alphaBytes": 32,
+          "pixelSha256": "266c8257f26f325470092e38a1eed78d3b515e4eb6bd485b007cafb84b9ed97d"
+        },
+        {
+          "character": 68,
+          "width": 7,
+          "height": 8,
+          "advance": 8,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 744,
+          "alphaBytes": 28,
+          "pixelSha256": "1bc196fd5adecdba64d1a4742836e3de61f51c3a835886461e6804106d462430"
+        },
+        {
+          "character": 69,
+          "width": 5,
+          "height": 8,
+          "advance": 6,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 772,
+          "alphaBytes": 20,
+          "pixelSha256": "281309a2a5b7243c7b1cd36d8e78bf3b1187b2c32ba7dd3b0a2e32885d496739"
+        },
+        {
+          "character": 70,
+          "width": 5,
+          "height": 8,
+          "advance": 6,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 792,
+          "alphaBytes": 20,
+          "pixelSha256": "db5bf8c652693bf6490652620be0f7e411a7dc2964582c773345ffe87aba403a"
+        },
+        {
+          "character": 71,
+          "width": 8,
+          "height": 9,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 812,
+          "alphaBytes": 36,
+          "pixelSha256": "77f382b864fcd8981dd4a48dc41d07af57cb016b222664b8f3812fd82aec60cb"
+        },
+        {
+          "character": 72,
+          "width": 7,
+          "height": 8,
+          "advance": 8,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 848,
+          "alphaBytes": 28,
+          "pixelSha256": "23389ddfcd1cd350de4325971e5afc61ccbd0f3cb7a2046c712f0ffa0002d62b"
+        },
+        {
+          "character": 73,
+          "width": 4,
+          "height": 8,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 876,
+          "alphaBytes": 16,
+          "pixelSha256": "306f7a1464ca7f3bb1e387ca9114a285d896ec9c7b8c8bb38bb02020eb9ac774"
+        },
+        {
+          "character": 74,
+          "width": 4,
+          "height": 11,
+          "advance": 3,
+          "offsetX": -1,
+          "offsetY": -8,
+          "alphaOffset": 892,
+          "alphaBytes": 22,
+          "pixelSha256": "4eda299415f620266c1be46a060eaffc1f2809db3141a72ef4b3c00f795ab924"
+        },
+        {
+          "character": 75,
+          "width": 6,
+          "height": 8,
+          "advance": 7,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 914,
+          "alphaBytes": 24,
+          "pixelSha256": "932c9f57506551baf527e54a43543b83e5836bd1aea0162a60412c331a48eb79"
+        },
+        {
+          "character": 76,
+          "width": 5,
+          "height": 8,
+          "advance": 6,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 938,
+          "alphaBytes": 20,
+          "pixelSha256": "713ba7445250db5df5a91e17a365a1065a17326711c2fa1fe6d2cd1c999f5480"
+        },
+        {
+          "character": 77,
+          "width": 8,
+          "height": 8,
+          "advance": 10,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 958,
+          "alphaBytes": 32,
+          "pixelSha256": "59220a9a973712ba133b8c2ccd2a95fdd00e10f96f656b8ec3176597ec8d4918"
+        },
+        {
+          "character": 78,
+          "width": 7,
+          "height": 8,
+          "advance": 8,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 990,
+          "alphaBytes": 28,
+          "pixelSha256": "a73afa76900aee32a46c3aad3d8a2d2a559e3251f2d8bb1cf9de871140afb86b"
+        },
+        {
+          "character": 79,
+          "width": 8,
+          "height": 9,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 1018,
+          "alphaBytes": 36,
+          "pixelSha256": "07a039766559f3228ae00e0064b9a65ac84a80bf6a1b20be2aaf1c43f0fb60c0"
+        },
+        {
+          "character": 80,
+          "width": 6,
+          "height": 8,
+          "advance": 7,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 1054,
+          "alphaBytes": 24,
+          "pixelSha256": "7fe15e0ef86d74f3c413e56b419ac39816b86fec85e2d8f7a367babd4200aa92"
+        },
+        {
+          "character": 81,
+          "width": 8,
+          "height": 10,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 1078,
+          "alphaBytes": 40,
+          "pixelSha256": "301fb9bb9dfc5f8815184c145680043f2b532a770cb8605eb69eb940fb7b4a64"
+        },
+        {
+          "character": 82,
+          "width": 6,
+          "height": 8,
+          "advance": 7,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 1118,
+          "alphaBytes": 24,
+          "pixelSha256": "8c774ba607fd78410b13cf48ee3be99747552765535c2d7d6a329a42669ef8db"
+        },
+        {
+          "character": 83,
+          "width": 6,
+          "height": 9,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 1142,
+          "alphaBytes": 27,
+          "pixelSha256": "67e1331b82198bf0202c06cf92816150299d27d38e0b41446916a9536ae65bb9"
+        },
+        {
+          "character": 84,
+          "width": 6,
+          "height": 8,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 1169,
+          "alphaBytes": 24,
+          "pixelSha256": "425358c43ffcc386fbf58f5de8e8801b6e351115d33227ee494367618f3a2b3b"
+        },
+        {
+          "character": 85,
+          "width": 8,
+          "height": 9,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 1193,
+          "alphaBytes": 36,
+          "pixelSha256": "f64c9f51cd79308297e398653c262c12c93fb707c2b766ec924e9477809afafc"
+        },
+        {
+          "character": 86,
+          "width": 7,
+          "height": 8,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 1229,
+          "alphaBytes": 28,
+          "pixelSha256": "2fd29f0e9ff9ea6dbdb80b1d70aaa18a2cffb70d01dd245b797249d8f5e69b97"
+        },
+        {
+          "character": 87,
+          "width": 11,
+          "height": 8,
+          "advance": 10,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 1257,
+          "alphaBytes": 44,
+          "pixelSha256": "89a9686a14cc0c036baf41bcd32bd408a9b8f440e63e0abe3f13304a59899045"
+        },
+        {
+          "character": 88,
+          "width": 7,
+          "height": 8,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 1301,
+          "alphaBytes": 28,
+          "pixelSha256": "04cd71ee18ade0ca512548ba772d4cc8dc1f8a322ce176f7be9ee4ba160fad74"
+        },
+        {
+          "character": 89,
+          "width": 7,
+          "height": 8,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 1329,
+          "alphaBytes": 28,
+          "pixelSha256": "4f95e1829eb83376e3efffdff3fe8efb7c5b59b8b959fa8ae7dca4597c5434de"
+        },
+        {
+          "character": 90,
+          "width": 6,
+          "height": 8,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 1357,
+          "alphaBytes": 24,
+          "pixelSha256": "5f1784467dddc8c17dc7873375b11699664f717f4484991f6c98da3fb5403cb7"
+        },
+        {
+          "character": 91,
+          "width": 4,
+          "height": 10,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 1381,
+          "alphaBytes": 20,
+          "pixelSha256": "dc04d35898d4f948bef22cb2399b8ea3589c168045c30f6000def820c98a1ff4"
+        },
+        {
+          "character": 92,
+          "width": 4,
+          "height": 8,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 1401,
+          "alphaBytes": 16,
+          "pixelSha256": "5b8faca3376c48e9a48254a63b8095e26535a0f2151dd5f56dc666add3eba3b1"
+        },
+        {
+          "character": 93,
+          "width": 3,
+          "height": 10,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 1417,
+          "alphaBytes": 15,
+          "pixelSha256": "d4f24d0c6ff6bd64154412fd3fbde105d87e64c2ffa3d7806b2defe2433b2eef"
+        },
+        {
+          "character": 94,
+          "width": 6,
+          "height": 6,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 1432,
+          "alphaBytes": 18,
+          "pixelSha256": "eefd83c2007a1d7faf1f88d3d4a4efd6d68fdc615f7f9e2de7e7c80da2c23b74"
+        },
+        {
+          "character": 95,
+          "width": 6,
+          "height": 2,
+          "advance": 5,
+          "offsetX": -1,
+          "offsetY": 0,
+          "alphaOffset": 1450,
+          "alphaBytes": 6,
+          "pixelSha256": "03911e8ca66e1907fb2b002db997bda3582e54b9130647076f4825d67a9bb5cb"
+        },
+        {
+          "character": 96,
+          "width": 3,
+          "height": 3,
+          "advance": 3,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 1456,
+          "alphaBytes": 5,
+          "pixelSha256": "b6bbb4ac33dd60743ba558ed92b9595e71437719c25e3c89fdadfbac7b36470a"
+        },
+        {
+          "character": 97,
+          "width": 6,
+          "height": 7,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -6,
+          "alphaOffset": 1461,
+          "alphaBytes": 21,
+          "pixelSha256": "c3f46d92ef8f68ce1f49ce519d00c3dde9e86b998bccf71028179952f935de99"
+        },
+        {
+          "character": 98,
+          "width": 7,
+          "height": 10,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 1482,
+          "alphaBytes": 35,
+          "pixelSha256": "d94ba64b66c0873dbce9c53dff7cbf2bf4ac1236ddfc2fe24278965c788446b1"
+        },
+        {
+          "character": 99,
+          "width": 5,
+          "height": 8,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 1517,
+          "alphaBytes": 20,
+          "pixelSha256": "ee04f506bee264abeab3ebdc3d1515663531c7200f4ca9fab40b7b622c446acb"
+        },
+        {
+          "character": 100,
+          "width": 6,
+          "height": 10,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 1537,
+          "alphaBytes": 30,
+          "pixelSha256": "eeeab65cd04d1020d46b462850e33ecf16854ec168a11756ad780154c8870cff"
+        },
+        {
+          "character": 101,
+          "width": 6,
+          "height": 8,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 1567,
+          "alphaBytes": 24,
+          "pixelSha256": "bb9e29ef26849cc0b54107eebec251428817ff976e1d395172f5978311e8227c"
+        },
+        {
+          "character": 102,
+          "width": 5,
+          "height": 9,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 1591,
+          "alphaBytes": 23,
+          "pixelSha256": "e3a505eeb3e9249636768f48f287269a82e8c285f68c70b38ffce2061056156e"
+        },
+        {
+          "character": 103,
+          "width": 6,
+          "height": 10,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 1614,
+          "alphaBytes": 30,
+          "pixelSha256": "22d58cba2a2aff3baeb7ceab5d76057629c761111322190834b2b86c883670fb"
+        },
+        {
+          "character": 104,
+          "width": 6,
+          "height": 9,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 1644,
+          "alphaBytes": 27,
+          "pixelSha256": "215dded1915d4ce60e598ffd0b6fbac31306e700ecde4f693749bef0dc0a2935"
+        },
+        {
+          "character": 105,
+          "width": 2,
+          "height": 9,
+          "advance": 3,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 1671,
+          "alphaBytes": 9,
+          "pixelSha256": "04db7c83a03be237ba1094bea0e3530c821140a261c84f0778992aac2e1527f1"
+        },
+        {
+          "character": 106,
+          "width": 3,
+          "height": 12,
+          "advance": 3,
+          "offsetX": -1,
+          "offsetY": -9,
+          "alphaOffset": 1680,
+          "alphaBytes": 18,
+          "pixelSha256": "1ca12750d685378b0535dc02d2180d3674bc8938ea353d4a01aa832478a973b7"
+        },
+        {
+          "character": 107,
+          "width": 6,
+          "height": 9,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 1698,
+          "alphaBytes": 27,
+          "pixelSha256": "f71aa7445e1e9e485ff6df89eae52890ccee3a47e5bb17394eb864f60909646d"
+        },
+        {
+          "character": 108,
+          "width": 2,
+          "height": 9,
+          "advance": 3,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 1725,
+          "alphaBytes": 9,
+          "pixelSha256": "6e7eb4918aee28b33b56ebf5be057e47b5d4559812ee2e735af7e5b9353c44da"
+        },
+        {
+          "character": 109,
+          "width": 10,
+          "height": 7,
+          "advance": 10,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 1734,
+          "alphaBytes": 35,
+          "pixelSha256": "0c91a814c2b5a4f60a4731d039f1bb01f97e9d8366affa2a47bdd71ea65c8eea"
+        },
+        {
+          "character": 110,
+          "width": 6,
+          "height": 7,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 1769,
+          "alphaBytes": 21,
+          "pixelSha256": "0baa582e249aab6ab4c542a52f6b40bd76e0cdaaaa3469189761003b03308efa"
+        },
+        {
+          "character": 111,
+          "width": 7,
+          "height": 8,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 1790,
+          "alphaBytes": 28,
+          "pixelSha256": "bc2384e5244f61b20fd69a221232f9c3a247d1aaccac1e5be77dbe7d0dfdd7c5"
+        },
+        {
+          "character": 112,
+          "width": 7,
+          "height": 10,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 1818,
+          "alphaBytes": 35,
+          "pixelSha256": "060efbe59c19077b7c90b530dafcdc4cb0d7098836b50cf053822e6fa3f8dcb3"
+        },
+        {
+          "character": 113,
+          "width": 6,
+          "height": 10,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 1853,
+          "alphaBytes": 30,
+          "pixelSha256": "b211f08a0e682759251ec6544933fad6d64581de0be243e4b244204a8059541e"
+        },
+        {
+          "character": 114,
+          "width": 5,
+          "height": 7,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 1883,
+          "alphaBytes": 18,
+          "pixelSha256": "b9d02a5ac9ab1921bb7ae38a6e49884973cd7701c834387acae05c181b9b3654"
+        },
+        {
+          "character": 115,
+          "width": 5,
+          "height": 8,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 1901,
+          "alphaBytes": 20,
+          "pixelSha256": "686b403ca91540aa12b3b4c6ea9df0326eb9095893a1fd9b978dee6cecb5723c"
+        },
+        {
+          "character": 116,
+          "width": 4,
+          "height": 9,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 1921,
+          "alphaBytes": 18,
+          "pixelSha256": "bf219919209715d908e604fe48145e0c11079230dc3ea65f55bc684cba10498b"
+        },
+        {
+          "character": 117,
+          "width": 6,
+          "height": 7,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -6,
+          "alphaOffset": 1939,
+          "alphaBytes": 21,
+          "pixelSha256": "0b0f500c645a3a4283f0eedaae8ec2cdec7286cfcf3bafc7278d89a874b9c31e"
+        },
+        {
+          "character": 118,
+          "width": 6,
+          "height": 6,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -6,
+          "alphaOffset": 1960,
+          "alphaBytes": 18,
+          "pixelSha256": "20a3771b8178535a431ebd24ddb793899437110027a77b10362a64e73d6b5b34"
+        },
+        {
+          "character": 119,
+          "width": 9,
+          "height": 6,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -6,
+          "alphaOffset": 1978,
+          "alphaBytes": 27,
+          "pixelSha256": "ccc2300ca75817268274212fa09663b129f3e85c367736378efd15246c47a709"
+        },
+        {
+          "character": 120,
+          "width": 6,
+          "height": 6,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -6,
+          "alphaOffset": 2005,
+          "alphaBytes": 18,
+          "pixelSha256": "bde43ce513a85ffdf7412e0ec035c29ecc18ed10470c31f2a7ef862d0a42d362"
+        },
+        {
+          "character": 121,
+          "width": 6,
+          "height": 9,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -6,
+          "alphaOffset": 2023,
+          "alphaBytes": 27,
+          "pixelSha256": "5d9a6745ce66b5b38976ca138c0d0737d43a78316634ea6c7f5f3b68de372f2c"
+        },
+        {
+          "character": 122,
+          "width": 5,
+          "height": 6,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -6,
+          "alphaOffset": 2050,
+          "alphaBytes": 15,
+          "pixelSha256": "93a607a36e99221f708f3df4dc6150051e343f236d6b7eaafcc67b63b3e8f979"
+        },
+        {
+          "character": 123,
+          "width": 4,
+          "height": 10,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 2065,
+          "alphaBytes": 20,
+          "pixelSha256": "181a092bc04bafb6e6db6c442fabdf1cb977890ed7a8623031b413ccb65ff2be"
+        },
+        {
+          "character": 124,
+          "width": 2,
+          "height": 12,
+          "advance": 6,
+          "offsetX": 2,
+          "offsetY": -9,
+          "alphaOffset": 2085,
+          "alphaBytes": 12,
+          "pixelSha256": "2110012685b9ce2f2c06857c02514cb544a634eee0e71f7937b9c5a726c37170"
+        },
+        {
+          "character": 125,
+          "width": 4,
+          "height": 10,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 2097,
+          "alphaBytes": 20,
+          "pixelSha256": "7c890e2e3d5d95ad097cf6d7f47b817c40938f09e0caede51df592da61142b44"
+        },
+        {
+          "character": 126,
+          "width": 6,
+          "height": 2,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -5,
+          "alphaOffset": 2117,
+          "alphaBytes": 6,
+          "pixelSha256": "efbd857165b411ab079a03376735702dee370713d5ac47c89e77dfd5d3815160"
+        }
+      ]
+    },
+    {
+      "id": "BODY",
+      "pixels": 14,
+      "weight": 400,
+      "first": 32,
+      "last": 126,
+      "fallback": 63,
+      "baseline": 11,
+      "height": 15,
+      "glyphs": [
+        {
+          "character": 32,
+          "width": 0,
+          "height": 0,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": 0,
+          "alphaOffset": 2123,
+          "alphaBytes": 0,
+          "pixelSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "character": 33,
+          "width": 2,
+          "height": 11,
+          "advance": 4,
+          "offsetX": 1,
+          "offsetY": -10,
+          "alphaOffset": 2123,
+          "alphaBytes": 11,
+          "pixelSha256": "ce169fc729f8c8cecb7dd985c7e5c1c5fbefdf2867d6a94e8e64dd9f8c5f5704"
+        },
+        {
+          "character": 34,
+          "width": 5,
+          "height": 4,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 2134,
+          "alphaBytes": 10,
+          "pixelSha256": "1deac73ac6e8087ee039bf50c197d985d29ba4642f842aa4c53ea41189ab62bb"
+        },
+        {
+          "character": 35,
+          "width": 9,
+          "height": 10,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 2144,
+          "alphaBytes": 45,
+          "pixelSha256": "28b4e7a8a662f41efcc473b965ace3f9404777c953fa4e06ecc155be0f07afaf"
+        },
+        {
+          "character": 36,
+          "width": 8,
+          "height": 12,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 2189,
+          "alphaBytes": 48,
+          "pixelSha256": "3498a8c8fa5f400dd824979ba8b2f6307be4f8f845e897acb8475e0204ae6c60"
+        },
+        {
+          "character": 37,
+          "width": 11,
+          "height": 12,
+          "advance": 12,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 2237,
+          "alphaBytes": 66,
+          "pixelSha256": "e4256e4ab614b1fcc1b743161e1644a37d7d4f50d950a50c93d0689721980d1b"
+        },
+        {
+          "character": 38,
+          "width": 11,
+          "height": 12,
+          "advance": 10,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 2303,
+          "alphaBytes": 66,
+          "pixelSha256": "5e05c194af063695d1d14fdc2d63f2d74d8b648543b894fd81c6045129e2573a"
+        },
+        {
+          "character": 39,
+          "width": 3,
+          "height": 4,
+          "advance": 3,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 2369,
+          "alphaBytes": 6,
+          "pixelSha256": "9ba0d58978de11446d8319397e55d40a6b9554412a4990c8f3ad040291a313f2"
+        },
+        {
+          "character": 40,
+          "width": 4,
+          "height": 13,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 2375,
+          "alphaBytes": 26,
+          "pixelSha256": "5c17972a5a1b2c69df8f9b1ad964b95ede76367011bd9dcf7994b95cfca01d87"
+        },
+        {
+          "character": 41,
+          "width": 4,
+          "height": 13,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 2401,
+          "alphaBytes": 26,
+          "pixelSha256": "9be8203865d15400dd75965a4a2e497d7d74ae104e806fb250c621862e7f9d85"
+        },
+        {
+          "character": 42,
+          "width": 8,
+          "height": 7,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 2427,
+          "alphaBytes": 28,
+          "pixelSha256": "a96d6900b287f24bd5eae2619f2b8f5b4d5f0b08c403314c82d2d8e566cb8c27"
+        },
+        {
+          "character": 43,
+          "width": 8,
+          "height": 8,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 2455,
+          "alphaBytes": 32,
+          "pixelSha256": "84d2ef671af81fd7d3ffb9b8274d8c8dc25efd9d215f64dd1bb96ca71ba54947"
+        },
+        {
+          "character": 44,
+          "width": 3,
+          "height": 4,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -2,
+          "alphaOffset": 2487,
+          "alphaBytes": 6,
+          "pixelSha256": "bae13fe24853ac25f85613b79878027dfd856ddec367b140d982d30c8b014e32"
+        },
+        {
+          "character": 45,
+          "width": 4,
+          "height": 2,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -5,
+          "alphaOffset": 2493,
+          "alphaBytes": 4,
+          "pixelSha256": "f68fed556d79cc9e831e4350a0306c6e7e36e5c238f41d2f15fa21b6c957d262"
+        },
+        {
+          "character": 46,
+          "width": 2,
+          "height": 3,
+          "advance": 4,
+          "offsetX": 1,
+          "offsetY": -2,
+          "alphaOffset": 2497,
+          "alphaBytes": 3,
+          "pixelSha256": "e587ef10713283b0606ceb43bfa16fda9ada21a4169b83428c5af15f73505a3f"
+        },
+        {
+          "character": 47,
+          "width": 6,
+          "height": 10,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 2500,
+          "alphaBytes": 30,
+          "pixelSha256": "88ef81692f601ce05658914d5188249ad5a14da6f4597ab7bebe670645decfa6"
+        },
+        {
+          "character": 48,
+          "width": 8,
+          "height": 12,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 2530,
+          "alphaBytes": 48,
+          "pixelSha256": "26e48ea35830cdf48abfd861c87a4ee3b66ccb0d5a8ade911759a65956acc7c3"
+        },
+        {
+          "character": 49,
+          "width": 4,
+          "height": 10,
+          "advance": 8,
+          "offsetX": 1,
+          "offsetY": -10,
+          "alphaOffset": 2578,
+          "alphaBytes": 20,
+          "pixelSha256": "040e5e8926ad848667fd6060d7d3209f6df06d0bce5361aa214c6bfb119ea2a7"
+        },
+        {
+          "character": 50,
+          "width": 8,
+          "height": 11,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 2598,
+          "alphaBytes": 44,
+          "pixelSha256": "006c485f7b84bc70900099ddb413cebe38bd27cd88813c86187d39c6b663fee7"
+        },
+        {
+          "character": 51,
+          "width": 8,
+          "height": 12,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 2642,
+          "alphaBytes": 48,
+          "pixelSha256": "f34d305ebab5b5e6b5ce70f8ca42d8e07b05c304d863bb419153c74794692527"
+        },
+        {
+          "character": 52,
+          "width": 8,
+          "height": 11,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 2690,
+          "alphaBytes": 44,
+          "pixelSha256": "83c8773893b1797877f0a381264b4e39673b55ee62434093b10fd50b97c76721"
+        },
+        {
+          "character": 53,
+          "width": 8,
+          "height": 11,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 2734,
+          "alphaBytes": 44,
+          "pixelSha256": "26fe2a0f22d6923abdf1f6075b9765fd2bf1244917436f7fd045902aa320bbc0"
+        },
+        {
+          "character": 54,
+          "width": 8,
+          "height": 12,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 2778,
+          "alphaBytes": 48,
+          "pixelSha256": "9a26a29dce2e6a895a94b3e186baa7e9abb67fa03c7ac8f206935437985c1044"
+        },
+        {
+          "character": 55,
+          "width": 8,
+          "height": 10,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 2826,
+          "alphaBytes": 40,
+          "pixelSha256": "c0a24be92a32f653b76f8b3ca4e3245d244fbb2a409f394aab237e44e5ff9485"
+        },
+        {
+          "character": 56,
+          "width": 8,
+          "height": 12,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 2866,
+          "alphaBytes": 48,
+          "pixelSha256": "dcbe1989138f1bd43340ac79918c32176b1861fcfca5dcaf5600cb07d50f7f0e"
+        },
+        {
+          "character": 57,
+          "width": 8,
+          "height": 12,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 2914,
+          "alphaBytes": 48,
+          "pixelSha256": "0d62f6554e11f166dac8549ea5b5b681c7a30be1cc4b0b935bfe7488524cc3d7"
+        },
+        {
+          "character": 58,
+          "width": 2,
+          "height": 9,
+          "advance": 4,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 2962,
+          "alphaBytes": 9,
+          "pixelSha256": "853ad6c299ed1046dbee595d7b31d1ba396fccb7a07295c9606ea36bc6c4991b"
+        },
+        {
+          "character": 59,
+          "width": 3,
+          "height": 10,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 2971,
+          "alphaBytes": 15,
+          "pixelSha256": "218fb876f65581ab92bc48635c50aad9bedaa981e698586b1a8d3d745af521b3"
+        },
+        {
+          "character": 60,
+          "width": 8,
+          "height": 8,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 2986,
+          "alphaBytes": 32,
+          "pixelSha256": "54727d4d5ffff59e8d99ceec95b5502585ef79f6347d94ccd53c53bb5d2f4b36"
+        },
+        {
+          "character": 61,
+          "width": 8,
+          "height": 4,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 3018,
+          "alphaBytes": 16,
+          "pixelSha256": "5cb495c1b74434577b76d09e8832328fa9ded81c7fc1afa1ac23a2476dce105a"
+        },
+        {
+          "character": 62,
+          "width": 8,
+          "height": 8,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 3034,
+          "alphaBytes": 32,
+          "pixelSha256": "c96c679cf1068d49b3d3dc95734dd1a626b26e54a790c58a8e6bc89e4008b100"
+        },
+        {
+          "character": 63,
+          "width": 6,
+          "height": 12,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 3066,
+          "alphaBytes": 36,
+          "pixelSha256": "97f70b63720d46480401e06433d4f6c0cc2df98755221c290b3497f4fdb548f5"
+        },
+        {
+          "character": 64,
+          "width": 12,
+          "height": 12,
+          "advance": 13,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 3102,
+          "alphaBytes": 72,
+          "pixelSha256": "ac5ef10badfe8c6db89f7f60e35e6b3c206349e3e0a38dac344de1fb44728529"
+        },
+        {
+          "character": 65,
+          "width": 9,
+          "height": 11,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 3174,
+          "alphaBytes": 50,
+          "pixelSha256": "6510538d8bbab9db2d88e64e03288bd59bb09dee44a326ff203f127f75c41673"
+        },
+        {
+          "character": 66,
+          "width": 8,
+          "height": 10,
+          "advance": 9,
+          "offsetX": 1,
+          "offsetY": -10,
+          "alphaOffset": 3224,
+          "alphaBytes": 40,
+          "pixelSha256": "23eb418e12fdb95c7f97262b5f120a6f6cb2c232fd757cd517d65deb425f3002"
+        },
+        {
+          "character": 67,
+          "width": 9,
+          "height": 12,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 3264,
+          "alphaBytes": 54,
+          "pixelSha256": "54c540ed1e75c126e20285f03751a6aa7a97648da762c6d6d8c262ec7c01be3e"
+        },
+        {
+          "character": 68,
+          "width": 9,
+          "height": 10,
+          "advance": 10,
+          "offsetX": 1,
+          "offsetY": -10,
+          "alphaOffset": 3318,
+          "alphaBytes": 45,
+          "pixelSha256": "e42e45e2129bddb0666735c9dd5c9bee14f57459745c6371cbb7868b41478dda"
+        },
+        {
+          "character": 69,
+          "width": 6,
+          "height": 10,
+          "advance": 8,
+          "offsetX": 1,
+          "offsetY": -10,
+          "alphaOffset": 3363,
+          "alphaBytes": 30,
+          "pixelSha256": "fa3e0bd5f7f9ab2d4ec7907e50e6fabcbf60ae5bcc440817d56423f77b1c9d29"
+        },
+        {
+          "character": 70,
+          "width": 6,
+          "height": 10,
+          "advance": 7,
+          "offsetX": 1,
+          "offsetY": -10,
+          "alphaOffset": 3393,
+          "alphaBytes": 30,
+          "pixelSha256": "c97a3067b7f5efa994431fb175d6b39bcb31823b563a90ebeb67977340d7f01e"
+        },
+        {
+          "character": 71,
+          "width": 10,
+          "height": 12,
+          "advance": 10,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 3423,
+          "alphaBytes": 60,
+          "pixelSha256": "6f126975feeef07f23f0c5b2f641b8fcedf707ed9ad24f1d30e428d82b0e30b7"
+        },
+        {
+          "character": 72,
+          "width": 9,
+          "height": 10,
+          "advance": 10,
+          "offsetX": 1,
+          "offsetY": -10,
+          "alphaOffset": 3483,
+          "alphaBytes": 45,
+          "pixelSha256": "2ac4f289df610fa41373588af63840c223bca1a2b07bd74afabe0caba9540883"
+        },
+        {
+          "character": 73,
+          "width": 5,
+          "height": 10,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 3528,
+          "alphaBytes": 25,
+          "pixelSha256": "8d619b40f42e6dfa5fa201b553726d59b109455ddd27778a8696f402949c2cd8"
+        },
+        {
+          "character": 74,
+          "width": 5,
+          "height": 13,
+          "advance": 4,
+          "offsetX": -2,
+          "offsetY": -10,
+          "alphaOffset": 3553,
+          "alphaBytes": 33,
+          "pixelSha256": "4c927b72f7f8045bbf5cf9c0e6142bb0440690ace8b7495714ae18b535677e06"
+        },
+        {
+          "character": 75,
+          "width": 8,
+          "height": 10,
+          "advance": 9,
+          "offsetX": 1,
+          "offsetY": -10,
+          "alphaOffset": 3586,
+          "alphaBytes": 40,
+          "pixelSha256": "564eb94f5fca83c0cc98d79de3a74ca1df5aff38d79250de37dd5db341ee8cfb"
+        },
+        {
+          "character": 76,
+          "width": 6,
+          "height": 10,
+          "advance": 7,
+          "offsetX": 1,
+          "offsetY": -10,
+          "alphaOffset": 3626,
+          "alphaBytes": 30,
+          "pixelSha256": "04355da33072e5e09e57f2f1d2e1dace9c41107d8915f22db33256ac668ce40a"
+        },
+        {
+          "character": 77,
+          "width": 11,
+          "height": 10,
+          "advance": 13,
+          "offsetX": 1,
+          "offsetY": -10,
+          "alphaOffset": 3656,
+          "alphaBytes": 55,
+          "pixelSha256": "664c5cb3c95eca69c40d2d31ec2cabee39796bd8229b61ed7f3ce5f4af97018b"
+        },
+        {
+          "character": 78,
+          "width": 9,
+          "height": 10,
+          "advance": 11,
+          "offsetX": 1,
+          "offsetY": -10,
+          "alphaOffset": 3711,
+          "alphaBytes": 45,
+          "pixelSha256": "8ceb5414a48470735983a766b196ae2c30876096a880671dbb7c76217de32b62"
+        },
+        {
+          "character": 79,
+          "width": 11,
+          "height": 12,
+          "advance": 11,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 3756,
+          "alphaBytes": 66,
+          "pixelSha256": "f0908202d22a0aaa1446fdd3b27473219c0f6f72a6b8f4ad483c5f80d39ff054"
+        },
+        {
+          "character": 80,
+          "width": 7,
+          "height": 10,
+          "advance": 8,
+          "offsetX": 1,
+          "offsetY": -10,
+          "alphaOffset": 3822,
+          "alphaBytes": 35,
+          "pixelSha256": "8c32c45ab4f517995ce48fc0d88d34ca3f4cf614c47adcf4bf9a7eb09756ab38"
+        },
+        {
+          "character": 81,
+          "width": 11,
+          "height": 14,
+          "advance": 11,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 3857,
+          "alphaBytes": 77,
+          "pixelSha256": "bab4e55bc3c39cf3f636d0ff436fa6bb10068b334b410ae37ed9f3de7f8b149a"
+        },
+        {
+          "character": 82,
+          "width": 8,
+          "height": 10,
+          "advance": 9,
+          "offsetX": 1,
+          "offsetY": -10,
+          "alphaOffset": 3934,
+          "alphaBytes": 40,
+          "pixelSha256": "0aa1c04f3273f32e2c50e255ed8688896671a6e8bb4fa6f9165f1163b947e3e5"
+        },
+        {
+          "character": 83,
+          "width": 8,
+          "height": 12,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 3974,
+          "alphaBytes": 48,
+          "pixelSha256": "514969b52f64dbc60f923c5030922fa87b5235654db0d605ca6d4ad0482ef66f"
+        },
+        {
+          "character": 84,
+          "width": 8,
+          "height": 10,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 4022,
+          "alphaBytes": 40,
+          "pixelSha256": "dd98d9a02d51672d570bba21c90a1de84f3d983ad96bbb946d89484aafd7aadd"
+        },
+        {
+          "character": 85,
+          "width": 8,
+          "height": 11,
+          "advance": 10,
+          "offsetX": 1,
+          "offsetY": -10,
+          "alphaOffset": 4062,
+          "alphaBytes": 44,
+          "pixelSha256": "44724cdedb7584b3d6021aa43980933ccb9459de2eec87d73959e2fdd52177f7"
+        },
+        {
+          "character": 86,
+          "width": 9,
+          "height": 10,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 4106,
+          "alphaBytes": 45,
+          "pixelSha256": "52c795c589cab3e5e45549a0054be3e1fc81c0cfee9842ce4a5e148240fd6146"
+        },
+        {
+          "character": 87,
+          "width": 13,
+          "height": 10,
+          "advance": 13,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 4151,
+          "alphaBytes": 65,
+          "pixelSha256": "aea598b3fbc391c0d69b2caf4f23abd39f3f162f3584b837b58879f41ba9ca6b"
+        },
+        {
+          "character": 88,
+          "width": 9,
+          "height": 10,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 4216,
+          "alphaBytes": 45,
+          "pixelSha256": "c828447ace5e0e31aab284a8ecf0e1096eb39e391873db24dea483476c3c9e0a"
+        },
+        {
+          "character": 89,
+          "width": 8,
+          "height": 10,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 4261,
+          "alphaBytes": 40,
+          "pixelSha256": "2db790e688e1e1383694001038c3b4b38628c4fe97a8d24f7f2e52d25a5d544f"
+        },
+        {
+          "character": 90,
+          "width": 8,
+          "height": 10,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 4301,
+          "alphaBytes": 40,
+          "pixelSha256": "a17ab3b503c37339712e4494eef2c37d07acc2a562663c48042b2fcd6d128b06"
+        },
+        {
+          "character": 91,
+          "width": 4,
+          "height": 13,
+          "advance": 5,
+          "offsetX": 1,
+          "offsetY": -10,
+          "alphaOffset": 4341,
+          "alphaBytes": 26,
+          "pixelSha256": "5e6f641a21f6b7beac008410ce26b09b2b22225586aac75276e40ef8d850e5f2"
+        },
+        {
+          "character": 92,
+          "width": 6,
+          "height": 10,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 4367,
+          "alphaBytes": 30,
+          "pixelSha256": "6aac97182b69ba58f3fb1acf1e0e445b8b962825c38f162e2f912bdca2865356"
+        },
+        {
+          "character": 93,
+          "width": 4,
+          "height": 13,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 4397,
+          "alphaBytes": 26,
+          "pixelSha256": "1ed48f5016b7cee4fdd20cad1b23001291db6b792a17168526e7165a1b8081bb"
+        },
+        {
+          "character": 94,
+          "width": 8,
+          "height": 8,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 4423,
+          "alphaBytes": 32,
+          "pixelSha256": "8c684fa5a8d55e9839ff939a398d0fa368db6d99b6e3c20609db7997fc646d0e"
+        },
+        {
+          "character": 95,
+          "width": 8,
+          "height": 2,
+          "advance": 6,
+          "offsetX": -1,
+          "offsetY": 1,
+          "alphaOffset": 4455,
+          "alphaBytes": 8,
+          "pixelSha256": "cdfb68613b81af2465cbcb19904dc1b62055433d7cc1b806eb598a80ffa33da6"
+        },
+        {
+          "character": 96,
+          "width": 4,
+          "height": 3,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 4463,
+          "alphaBytes": 6,
+          "pixelSha256": "550b43a17035c44a162ec7f90b39bf56bdfbc4ac43a28a882cbbc8d3b1dbefcf"
+        },
+        {
+          "character": 97,
+          "width": 7,
+          "height": 9,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 4469,
+          "alphaBytes": 32,
+          "pixelSha256": "3433c6ca399db76065f3c9e1626cf1aee78ff1f134b3f1953a9cac268ae2fad8"
+        },
+        {
+          "character": 98,
+          "width": 7,
+          "height": 12,
+          "advance": 9,
+          "offsetX": 1,
+          "offsetY": -11,
+          "alphaOffset": 4501,
+          "alphaBytes": 42,
+          "pixelSha256": "ebbbe0e9e36366aa2dca8c503f50e0152313f008f3f4e5e9db4eb7f1bcedf320"
+        },
+        {
+          "character": 99,
+          "width": 7,
+          "height": 9,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 4543,
+          "alphaBytes": 32,
+          "pixelSha256": "1ef55dc28d304a79cc3e8ec69d2ebe3405d587c20cd5fad85352681bcae49968"
+        },
+        {
+          "character": 100,
+          "width": 8,
+          "height": 12,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 4575,
+          "alphaBytes": 48,
+          "pixelSha256": "bd71c3ba0858ec40c34103d4ca581876bdcad249b8c1f7b44387c5a891bbda6c"
+        },
+        {
+          "character": 101,
+          "width": 8,
+          "height": 9,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 4623,
+          "alphaBytes": 36,
+          "pixelSha256": "2a9b65152477b7c5c2682054abeefefa71fffcef9b728c9be5c9eb8bd552eee7"
+        },
+        {
+          "character": 102,
+          "width": 6,
+          "height": 11,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 4659,
+          "alphaBytes": 33,
+          "pixelSha256": "315bf360fb1add420c7821b9858ab1271dc313191ae4f286c3ef634b0e2968e4"
+        },
+        {
+          "character": 103,
+          "width": 8,
+          "height": 12,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 4692,
+          "alphaBytes": 48,
+          "pixelSha256": "e38f8e814fd7f89aeb2e123e6fd5d8355ec9b7e8ec954802f86ef0aeedd0c9b4"
+        },
+        {
+          "character": 104,
+          "width": 7,
+          "height": 11,
+          "advance": 9,
+          "offsetX": 1,
+          "offsetY": -11,
+          "alphaOffset": 4740,
+          "alphaBytes": 39,
+          "pixelSha256": "e84c668e50e7450107c271675b58e8d760f797127e2de165b3f5c71f07175f85"
+        },
+        {
+          "character": 105,
+          "width": 2,
+          "height": 11,
+          "advance": 4,
+          "offsetX": 1,
+          "offsetY": -11,
+          "alphaOffset": 4779,
+          "alphaBytes": 11,
+          "pixelSha256": "6c917263bd9645cac44119aac2c171c17fb68569c287aaefaa856b6fbe7a9ee6"
+        },
+        {
+          "character": 106,
+          "width": 4,
+          "height": 15,
+          "advance": 4,
+          "offsetX": -1,
+          "offsetY": -11,
+          "alphaOffset": 4790,
+          "alphaBytes": 30,
+          "pixelSha256": "9175deedf403c2ee64051e2ccd05d4d4917b507ce48cce1e03319943faeb44e5"
+        },
+        {
+          "character": 107,
+          "width": 7,
+          "height": 11,
+          "advance": 7,
+          "offsetX": 1,
+          "offsetY": -11,
+          "alphaOffset": 4820,
+          "alphaBytes": 39,
+          "pixelSha256": "a01237c3988de2f2f9def9e5f9301c1fd856c713a0b97e32388601ee6aaa34d3"
+        },
+        {
+          "character": 108,
+          "width": 2,
+          "height": 11,
+          "advance": 4,
+          "offsetX": 1,
+          "offsetY": -11,
+          "alphaOffset": 4859,
+          "alphaBytes": 11,
+          "pixelSha256": "084d7ecbfce14c1f7a6ab3b842aab9af16cb2ef6065ebd7137e9c7d5fca46fa3"
+        },
+        {
+          "character": 109,
+          "width": 11,
+          "height": 8,
+          "advance": 13,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 4870,
+          "alphaBytes": 44,
+          "pixelSha256": "2525a9d47e7b76acc14304b0399f87e2218e7f4f78d5325b45a3547a192e8187"
+        },
+        {
+          "character": 110,
+          "width": 7,
+          "height": 8,
+          "advance": 9,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 4914,
+          "alphaBytes": 28,
+          "pixelSha256": "e1959982d4dacce8196caf4d651e51664028ca0572c223e3f9e0cd6c7e1d060b"
+        },
+        {
+          "character": 111,
+          "width": 8,
+          "height": 9,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 4942,
+          "alphaBytes": 36,
+          "pixelSha256": "6c382d175a314bc51de4ff6f5e25f277df65fdc8e093326d4ab4f32342559ec3"
+        },
+        {
+          "character": 112,
+          "width": 7,
+          "height": 12,
+          "advance": 9,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 4978,
+          "alphaBytes": 42,
+          "pixelSha256": "7bffa435dc499ea30bdb611bec9adc8f01c2bb1985909a9411babec8674b6808"
+        },
+        {
+          "character": 113,
+          "width": 8,
+          "height": 12,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 5020,
+          "alphaBytes": 48,
+          "pixelSha256": "48bcb6c450a8813aa9c00419bf8c2ab688be3aa060d74de3e39df49f874d3af5"
+        },
+        {
+          "character": 114,
+          "width": 5,
+          "height": 8,
+          "advance": 6,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 5068,
+          "alphaBytes": 20,
+          "pixelSha256": "d70f689f5c0d8667a3732ea2047d21ccd04e2c1c2ea25344e9e445fb174eae69"
+        },
+        {
+          "character": 115,
+          "width": 7,
+          "height": 9,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 5088,
+          "alphaBytes": 32,
+          "pixelSha256": "839b553d33f4449856c23a3ba198ceead2417c6d3bdb82e231b62dab7dca0932"
+        },
+        {
+          "character": 116,
+          "width": 5,
+          "height": 11,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 5120,
+          "alphaBytes": 28,
+          "pixelSha256": "3a8ca392627e1fbd2891e910b549782502ae2967e30c951e9cd7796076c4b1f4"
+        },
+        {
+          "character": 117,
+          "width": 7,
+          "height": 9,
+          "advance": 9,
+          "offsetX": 1,
+          "offsetY": -8,
+          "alphaOffset": 5148,
+          "alphaBytes": 32,
+          "pixelSha256": "f8844a481d5d837d5582579e5b8e2945875955fc79dfe47c97f5f9a8b769d0e7"
+        },
+        {
+          "character": 118,
+          "width": 8,
+          "height": 8,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 5180,
+          "alphaBytes": 32,
+          "pixelSha256": "516071f12085590b0243980a4edda004b30b21948259a6527c963048340aa805"
+        },
+        {
+          "character": 119,
+          "width": 11,
+          "height": 8,
+          "advance": 11,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 5212,
+          "alphaBytes": 44,
+          "pixelSha256": "e21699201f6809b53aeb5531fb87e7236a9e4735c0a79eee12a798b72262ee58"
+        },
+        {
+          "character": 120,
+          "width": 8,
+          "height": 8,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 5256,
+          "alphaBytes": 32,
+          "pixelSha256": "7e129ac7f635fdad768af5911e5893717199315db75a0606f927c3b03e708d09"
+        },
+        {
+          "character": 121,
+          "width": 8,
+          "height": 12,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 5288,
+          "alphaBytes": 48,
+          "pixelSha256": "3a2996d8d3c95f82344f10ad8f05677ab31ffe763550fcf30f0764ced6b307ba"
+        },
+        {
+          "character": 122,
+          "width": 7,
+          "height": 8,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 5336,
+          "alphaBytes": 28,
+          "pixelSha256": "b08847e3628724fe8caf94f571458cfe41548d9ff4a2c57e243e27eb8a5aef76"
+        },
+        {
+          "character": 123,
+          "width": 5,
+          "height": 13,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 5364,
+          "alphaBytes": 33,
+          "pixelSha256": "17f071aca48253257f20ddd79f2673b3ab27648585bbedcf7a3bc2bcf6984e5c"
+        },
+        {
+          "character": 124,
+          "width": 2,
+          "height": 15,
+          "advance": 8,
+          "offsetX": 3,
+          "offsetY": -11,
+          "alphaOffset": 5397,
+          "alphaBytes": 15,
+          "pixelSha256": "f38b319a62e0a12698a95a51660b902bb5b50a3bb98ebcaf7df3fb8437b903e6"
+        },
+        {
+          "character": 125,
+          "width": 5,
+          "height": 13,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 5412,
+          "alphaBytes": 33,
+          "pixelSha256": "011296a6ea35ffb9d46b976984fd3a2d3973ca43d712a520bf50766f991f1a3b"
+        },
+        {
+          "character": 126,
+          "width": 8,
+          "height": 2,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -6,
+          "alphaOffset": 5445,
+          "alphaBytes": 8,
+          "pixelSha256": "07cbc943932f8bd8b39cda42c4d3b69f8ef6b39306f3612d604781f64531f0b1"
+        }
+      ]
+    },
+    {
+      "id": "TITLE",
+      "pixels": 16,
+      "weight": 600,
+      "first": 32,
+      "last": 126,
+      "fallback": 63,
+      "baseline": 13,
+      "height": 17,
+      "glyphs": [
+        {
+          "character": 32,
+          "width": 0,
+          "height": 0,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": 0,
+          "alphaOffset": 5453,
+          "alphaBytes": 0,
+          "pixelSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "character": 33,
+          "width": 4,
+          "height": 13,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 5453,
+          "alphaBytes": 26,
+          "pixelSha256": "750edac0dac22840889f016e2cde8413be1355c4c12bdbc6d724311a97710e36"
+        },
+        {
+          "character": 34,
+          "width": 6,
+          "height": 5,
+          "advance": 7,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 5479,
+          "alphaBytes": 15,
+          "pixelSha256": "163ad207d3bbb0b1ee71c5eb0beb89444941818b64d2212406cffeb61d38170e"
+        },
+        {
+          "character": 35,
+          "width": 10,
+          "height": 12,
+          "advance": 10,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 5494,
+          "alphaBytes": 60,
+          "pixelSha256": "b64d3c3b3c79894ef420f900bf5e8e32adbaa1911a9b5fc347d9aea82c0d8f7a"
+        },
+        {
+          "character": 36,
+          "width": 9,
+          "height": 14,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -13,
+          "alphaOffset": 5554,
+          "alphaBytes": 63,
+          "pixelSha256": "6724807a6398a9492a987eb6121b271b2b8c9e9c6a8cceb32f910725660a83cb"
+        },
+        {
+          "character": 37,
+          "width": 14,
+          "height": 13,
+          "advance": 14,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 5617,
+          "alphaBytes": 91,
+          "pixelSha256": "da0176666caf784ebfd509511b19c48f1f3079ab1e5a35633c21ca4dbfa45953"
+        },
+        {
+          "character": 38,
+          "width": 12,
+          "height": 13,
+          "advance": 12,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 5708,
+          "alphaBytes": 78,
+          "pixelSha256": "a00581690ed90ab606d409987ce3d8320721c6a181d76e949116ac55cac59fb1"
+        },
+        {
+          "character": 39,
+          "width": 3,
+          "height": 5,
+          "advance": 4,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 5786,
+          "alphaBytes": 8,
+          "pixelSha256": "0e65d41c2fe0a29393240715165d8a14790c1ccd800da00fe52f8b7537c88e96"
+        },
+        {
+          "character": 40,
+          "width": 5,
+          "height": 15,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 5794,
+          "alphaBytes": 38,
+          "pixelSha256": "17a73b8958d67968d3e37eda7e470509214a40b92849ad5f26a111040bf5765f"
+        },
+        {
+          "character": 41,
+          "width": 5,
+          "height": 15,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 5832,
+          "alphaBytes": 38,
+          "pixelSha256": "fd9dc166b21a4d8a6c688d505290dad902364538e2aa41b64b3b3ca091180d0a"
+        },
+        {
+          "character": 42,
+          "width": 9,
+          "height": 9,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -13,
+          "alphaOffset": 5870,
+          "alphaBytes": 41,
+          "pixelSha256": "3941c3a9f494a81a024c5199ec132c7e289396eced10575659e6a8c85d6404d4"
+        },
+        {
+          "character": 43,
+          "width": 9,
+          "height": 9,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 5911,
+          "alphaBytes": 41,
+          "pixelSha256": "8a0cb4ebfa18dfc841d91c67863dac549cdefa1de49364163f575e9a2ceadd7c"
+        },
+        {
+          "character": 44,
+          "width": 4,
+          "height": 5,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -2,
+          "alphaOffset": 5952,
+          "alphaBytes": 10,
+          "pixelSha256": "fc5b1a51831567231d6a4027af7faa85ee484f51933a68c4163db0c915610fff"
+        },
+        {
+          "character": 45,
+          "width": 5,
+          "height": 3,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -6,
+          "alphaOffset": 5962,
+          "alphaBytes": 8,
+          "pixelSha256": "c12dfb1eaf741ee3c7df8cc4af0d653b3a8ef1071467fd094d251ccf28e3a5af"
+        },
+        {
+          "character": 46,
+          "width": 4,
+          "height": 4,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -3,
+          "alphaOffset": 5970,
+          "alphaBytes": 8,
+          "pixelSha256": "aae94fe626ae8300e3b91acac3ce030abe198428c8f7e9dbfbb94e8033eaf811"
+        },
+        {
+          "character": 47,
+          "width": 7,
+          "height": 13,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 5978,
+          "alphaBytes": 46,
+          "pixelSha256": "7681586f6e31a9346c1835d3c81c2ce28335b677c40cff66073b9cecbf0f73fb"
+        },
+        {
+          "character": 48,
+          "width": 9,
+          "height": 13,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 6024,
+          "alphaBytes": 59,
+          "pixelSha256": "ee9409eaeafe4de997e09ad2c77ba343051cb623f3f96edf6d420d47cee840c7"
+        },
+        {
+          "character": 49,
+          "width": 6,
+          "height": 12,
+          "advance": 9,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 6083,
+          "alphaBytes": 36,
+          "pixelSha256": "fe8e3b5e93386a96f5d53b19c5bac580f176b526595aafa9f1a1867ca93dcd3e"
+        },
+        {
+          "character": 50,
+          "width": 9,
+          "height": 12,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 6119,
+          "alphaBytes": 54,
+          "pixelSha256": "38c35065ff22884880e31f8d11327d176c80646c53ea488adca5b73b3cba853e"
+        },
+        {
+          "character": 51,
+          "width": 9,
+          "height": 13,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 6173,
+          "alphaBytes": 59,
+          "pixelSha256": "8255f621d5a3c23a1077f06ef1df0bd94ea4104addc16f5b9ec021f4e8886540"
+        },
+        {
+          "character": 52,
+          "width": 9,
+          "height": 12,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 6232,
+          "alphaBytes": 54,
+          "pixelSha256": "7176f99489189da4b2f562560f0fa02b0256c000b5bc414f2dcbe2696bf236c5"
+        },
+        {
+          "character": 53,
+          "width": 9,
+          "height": 13,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 6286,
+          "alphaBytes": 59,
+          "pixelSha256": "464948331cfedae0be488250e8112854762f2ef27f4407743c3a955fda323f9d"
+        },
+        {
+          "character": 54,
+          "width": 9,
+          "height": 13,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 6345,
+          "alphaBytes": 59,
+          "pixelSha256": "674013da7b144859bdfca090fd22da5508d8775ae0642dcf7697cff4437fd4b8"
+        },
+        {
+          "character": 55,
+          "width": 9,
+          "height": 12,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 6404,
+          "alphaBytes": 54,
+          "pixelSha256": "5bd77bfec3b7208a544e3f8e9d5d71b5b2fbb81e007652a7e67b3ff184829af4"
+        },
+        {
+          "character": 56,
+          "width": 9,
+          "height": 13,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 6458,
+          "alphaBytes": 59,
+          "pixelSha256": "3a1b856deb4928ece48750ac2f7cb3bedf689692cc5ced5e65811e74918bec5c"
+        },
+        {
+          "character": 57,
+          "width": 9,
+          "height": 13,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 6517,
+          "alphaBytes": 59,
+          "pixelSha256": "6b6cfa585e56301a73caf9886ae79a82858ba330fcaca2003e15dfcfe79764b5"
+        },
+        {
+          "character": 58,
+          "width": 4,
+          "height": 10,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 6576,
+          "alphaBytes": 20,
+          "pixelSha256": "af7b7de99e4392323f51cb26066cb810982f08be4dd5eb7daed7de232c0aa1cc"
+        },
+        {
+          "character": 59,
+          "width": 4,
+          "height": 12,
+          "advance": 4,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 6596,
+          "alphaBytes": 24,
+          "pixelSha256": "36ecf2117f84efafab458aac8f1244c8c0259571849422428193ca263570ad02"
+        },
+        {
+          "character": 60,
+          "width": 9,
+          "height": 9,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 6620,
+          "alphaBytes": 41,
+          "pixelSha256": "ac8a9540228fd807ba4d8a5e293e12151e7094b76b243dfa7be00fe82d6ca347"
+        },
+        {
+          "character": 61,
+          "width": 9,
+          "height": 5,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -8,
+          "alphaOffset": 6661,
+          "alphaBytes": 23,
+          "pixelSha256": "f109ea514df3beea33bdb570ecea5a844f1ec128ffc9dc8f4e26fb185e420608"
+        },
+        {
+          "character": 62,
+          "width": 9,
+          "height": 9,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -10,
+          "alphaOffset": 6684,
+          "alphaBytes": 41,
+          "pixelSha256": "0d30d77d19995d214b5cc7f2e1f190ea65f69eb32b8ab96418fefafb499dcf9e"
+        },
+        {
+          "character": 63,
+          "width": 8,
+          "height": 13,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 6725,
+          "alphaBytes": 52,
+          "pixelSha256": "ec8f777590e6c062220e01bb7c88d71034a7e7fb2ea9978f12e6a338d1541c0d"
+        },
+        {
+          "character": 64,
+          "width": 14,
+          "height": 14,
+          "advance": 14,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 6777,
+          "alphaBytes": 98,
+          "pixelSha256": "a8954d8e656bc1d24df07f2879b951a02d7555bcfe3e36d01acafb20956ab014"
+        },
+        {
+          "character": 65,
+          "width": 11,
+          "height": 12,
+          "advance": 11,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 6875,
+          "alphaBytes": 66,
+          "pixelSha256": "7204486f3012748b526dd994e5523bfa25ef7ca728d727c630adc63ce6878552"
+        },
+        {
+          "character": 66,
+          "width": 9,
+          "height": 12,
+          "advance": 11,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 6941,
+          "alphaBytes": 54,
+          "pixelSha256": "2f32541af3a7dc1f4443afc33d8812fbc92ad062423599dd84bf5e6e546fcbf0"
+        },
+        {
+          "character": 67,
+          "width": 10,
+          "height": 13,
+          "advance": 10,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 6995,
+          "alphaBytes": 65,
+          "pixelSha256": "d60dba2b161a7df5ff7c1e46ec2f710c47a338e5b54c72322ccfd0f4004104a6"
+        },
+        {
+          "character": 68,
+          "width": 10,
+          "height": 12,
+          "advance": 12,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 7060,
+          "alphaBytes": 60,
+          "pixelSha256": "8e4fce0e8d176618c775858f43c62c06e26d7ab90a25dbd716703dcd0036b83c"
+        },
+        {
+          "character": 69,
+          "width": 7,
+          "height": 12,
+          "advance": 9,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 7120,
+          "alphaBytes": 42,
+          "pixelSha256": "a50a36129a24684deeb07b0204efce4d4caefc1acce2964a9c7f393596d3ec7d"
+        },
+        {
+          "character": 70,
+          "width": 7,
+          "height": 12,
+          "advance": 9,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 7162,
+          "alphaBytes": 42,
+          "pixelSha256": "cb7a23de7fcb4b822e7a0257f7aec08fab90502515b6736ebde9c4c1552e792b"
+        },
+        {
+          "character": 71,
+          "width": 11,
+          "height": 13,
+          "advance": 12,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 7204,
+          "alphaBytes": 72,
+          "pixelSha256": "48e684941f73675118db5f79a86bc62c523f28256ef89602d791276091ed08fe"
+        },
+        {
+          "character": 72,
+          "width": 10,
+          "height": 12,
+          "advance": 12,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 7276,
+          "alphaBytes": 60,
+          "pixelSha256": "13306d5f7f2e5e2ebb5402ed8585803c43f5d98c0f6ee63b80b7dbb00bd5cdbb"
+        },
+        {
+          "character": 73,
+          "width": 6,
+          "height": 12,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 7336,
+          "alphaBytes": 36,
+          "pixelSha256": "91aceed24ea82a0a76ea51f99cd62a8c3843d4f4db145bc705686e44544250ef"
+        },
+        {
+          "character": 74,
+          "width": 6,
+          "height": 16,
+          "advance": 5,
+          "offsetX": -2,
+          "offsetY": -12,
+          "alphaOffset": 7372,
+          "alphaBytes": 48,
+          "pixelSha256": "51578d095119a91083dde3089a8159bdfd6cff51875eff4aff36014946bf1899"
+        },
+        {
+          "character": 75,
+          "width": 10,
+          "height": 12,
+          "advance": 10,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 7420,
+          "alphaBytes": 60,
+          "pixelSha256": "439ead7bc55303ef2aba6a927b46f59c3ca828ba7f56e4685153f1552eb2ee9e"
+        },
+        {
+          "character": 76,
+          "width": 8,
+          "height": 12,
+          "advance": 9,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 7480,
+          "alphaBytes": 48,
+          "pixelSha256": "82ec9c72d40cddb981383874805d8fe73f618dbdda5e745eb5f33a0ff4566322"
+        },
+        {
+          "character": 77,
+          "width": 13,
+          "height": 12,
+          "advance": 15,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 7528,
+          "alphaBytes": 78,
+          "pixelSha256": "f747bcd16b7ce0f174a2c3ff0dca47f4fb0c2c169a6498c49df2df2b52c1d417"
+        },
+        {
+          "character": 78,
+          "width": 11,
+          "height": 12,
+          "advance": 13,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 7606,
+          "alphaBytes": 66,
+          "pixelSha256": "5df39a2d17b8f66f8af6292ac41ade28862eb293ce37373268ed1213238ec849"
+        },
+        {
+          "character": 79,
+          "width": 12,
+          "height": 13,
+          "advance": 13,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 7672,
+          "alphaBytes": 78,
+          "pixelSha256": "6f9bf6666d3591f17d17c04755095b3ee0cf5f7a28bf2f4e836060c294f6d7a8"
+        },
+        {
+          "character": 80,
+          "width": 9,
+          "height": 12,
+          "advance": 10,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 7750,
+          "alphaBytes": 54,
+          "pixelSha256": "8ae656c894f973799a1b07d41a355ad8c40ae97d069e60e3f8b842462bad02cc"
+        },
+        {
+          "character": 81,
+          "width": 12,
+          "height": 15,
+          "advance": 13,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 7804,
+          "alphaBytes": 90,
+          "pixelSha256": "8a61fc9eae89cb43c48e9370ba8decefde42758cc2e6f5255efe689e4173809c"
+        },
+        {
+          "character": 82,
+          "width": 10,
+          "height": 12,
+          "advance": 10,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 7894,
+          "alphaBytes": 60,
+          "pixelSha256": "847d990638d10a2e3782542369df1d73f22620cdf1f1fb9bb11d1e2f4e22bac4"
+        },
+        {
+          "character": 83,
+          "width": 9,
+          "height": 13,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 7954,
+          "alphaBytes": 59,
+          "pixelSha256": "784417f725f0a2f4b6e646ea2bc243522addd955071cc53968d6578a9ffd3658"
+        },
+        {
+          "character": 84,
+          "width": 9,
+          "height": 12,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 8013,
+          "alphaBytes": 54,
+          "pixelSha256": "7be1494ba5f6c13dcb5fa4889ec84c06564cba438e0aea48b911a06e52897385"
+        },
+        {
+          "character": 85,
+          "width": 10,
+          "height": 13,
+          "advance": 12,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 8067,
+          "alphaBytes": 65,
+          "pixelSha256": "d9591cf01d38937604c3dc47b4ab0b39f3f528a40fbd51277bb3f42238c66315"
+        },
+        {
+          "character": 86,
+          "width": 11,
+          "height": 12,
+          "advance": 10,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 8132,
+          "alphaBytes": 66,
+          "pixelSha256": "30ab9bb70f721f8f0ccacdc5738392028de1e13696c53b8043a53df0293d129f"
+        },
+        {
+          "character": 87,
+          "width": 16,
+          "height": 12,
+          "advance": 15,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 8198,
+          "alphaBytes": 96,
+          "pixelSha256": "f009a6b90e0431867de27c7258f79beb580b371bfe1c7b2a86e34b22a8119714"
+        },
+        {
+          "character": 88,
+          "width": 11,
+          "height": 12,
+          "advance": 10,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 8294,
+          "alphaBytes": 66,
+          "pixelSha256": "a9916066047dc9c607335b8d0d1e50a66199871c361382eb2eb13335d0ac3ffb"
+        },
+        {
+          "character": 89,
+          "width": 10,
+          "height": 12,
+          "advance": 10,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 8360,
+          "alphaBytes": 60,
+          "pixelSha256": "11a4947dfbaaea171422b1afcd792f5826d55d469e3122eb5882366971537dc9"
+        },
+        {
+          "character": 90,
+          "width": 9,
+          "height": 12,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 8420,
+          "alphaBytes": 54,
+          "pixelSha256": "7117653dc0ae272dd07e34c3ad3cfe1a0f47c2323f90acdd88285819fa8bd793"
+        },
+        {
+          "character": 91,
+          "width": 4,
+          "height": 15,
+          "advance": 5,
+          "offsetX": 1,
+          "offsetY": -12,
+          "alphaOffset": 8474,
+          "alphaBytes": 30,
+          "pixelSha256": "54b9caee65ba4e1d27a6bd4d9b2c3e4e3d0dad9535b1ae0b3cd8080aa31339e3"
+        },
+        {
+          "character": 92,
+          "width": 7,
+          "height": 13,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 8504,
+          "alphaBytes": 46,
+          "pixelSha256": "45104d8a4286c0a034a392dcdf80ae22f9614f6cbb66b69a3bf208e4a3028775"
+        },
+        {
+          "character": 93,
+          "width": 5,
+          "height": 15,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 8550,
+          "alphaBytes": 38,
+          "pixelSha256": "56825233286e4cfaf84876a341966c3cbc4762437df44d0309441091d00ac071"
+        },
+        {
+          "character": 94,
+          "width": 9,
+          "height": 8,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 8588,
+          "alphaBytes": 36,
+          "pixelSha256": "019403e729a42e135e6bf9d00feaf8eb20191d740d7905f92f0e5c120e773b58"
+        },
+        {
+          "character": 95,
+          "width": 8,
+          "height": 2,
+          "advance": 7,
+          "offsetX": -1,
+          "offsetY": 1,
+          "alphaOffset": 8624,
+          "alphaBytes": 8,
+          "pixelSha256": "fce230b8fe6678d28da0525cf19129d5e1f6413ccb54a7a19f5261638b465464"
+        },
+        {
+          "character": 96,
+          "width": 5,
+          "height": 4,
+          "advance": 5,
+          "offsetX": 0,
+          "offsetY": -13,
+          "alphaOffset": 8632,
+          "alphaBytes": 10,
+          "pixelSha256": "7824452dc69afc94d08b13e76aa2f77bf60fc1fa7afb255ad6d4608ad92a6b7d"
+        },
+        {
+          "character": 97,
+          "width": 9,
+          "height": 10,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 8642,
+          "alphaBytes": 45,
+          "pixelSha256": "a3d3c902622fffcc9ab4b69aca359bf7ed956bc040b2ed05afbc36db8c790453"
+        },
+        {
+          "character": 98,
+          "width": 9,
+          "height": 14,
+          "advance": 10,
+          "offsetX": 1,
+          "offsetY": -13,
+          "alphaOffset": 8687,
+          "alphaBytes": 63,
+          "pixelSha256": "f10113723e6bef678b4b7be17460d25e23aa53dbfa67e94eaae8388498ca9394"
+        },
+        {
+          "character": 99,
+          "width": 8,
+          "height": 10,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 8750,
+          "alphaBytes": 40,
+          "pixelSha256": "7166b908f62d68e9837a55c1c1a4a09e3a09009d8c3a67f3bca0c945549e8c26"
+        },
+        {
+          "character": 100,
+          "width": 9,
+          "height": 14,
+          "advance": 10,
+          "offsetX": 0,
+          "offsetY": -13,
+          "alphaOffset": 8790,
+          "alphaBytes": 63,
+          "pixelSha256": "da2622010807586393773722f6b475a2e894a6e2b7cdaa1de78b1c52150c6ddf"
+        },
+        {
+          "character": 101,
+          "width": 9,
+          "height": 10,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 8853,
+          "alphaBytes": 45,
+          "pixelSha256": "74b9c2d27be33db42f7d7b0a385cf6671022588bffca69a04a3814ac5d31bcd9"
+        },
+        {
+          "character": 102,
+          "width": 7,
+          "height": 13,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -13,
+          "alphaOffset": 8898,
+          "alphaBytes": 46,
+          "pixelSha256": "b95a1e8af3af1938fecfdaee8300851bed9f895ba3a3a627196dff106162419c"
+        },
+        {
+          "character": 103,
+          "width": 9,
+          "height": 13,
+          "advance": 10,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 8944,
+          "alphaBytes": 59,
+          "pixelSha256": "95a245c685de721d1ea8dcf13991671c4d9cc0fadcc91bea66d1579cf2c4d97e"
+        },
+        {
+          "character": 104,
+          "width": 9,
+          "height": 13,
+          "advance": 10,
+          "offsetX": 1,
+          "offsetY": -13,
+          "alphaOffset": 9003,
+          "alphaBytes": 59,
+          "pixelSha256": "1422060311c5cf8f54543c477cc1efb30e0644e10cdc34853ea697375e111aec"
+        },
+        {
+          "character": 105,
+          "width": 3,
+          "height": 13,
+          "advance": 5,
+          "offsetX": 1,
+          "offsetY": -13,
+          "alphaOffset": 9062,
+          "alphaBytes": 20,
+          "pixelSha256": "cd97eb430b17c0d410e8b82e487d2cc8f09610b2375338b16dc139a87fa2262b"
+        },
+        {
+          "character": 106,
+          "width": 5,
+          "height": 17,
+          "advance": 5,
+          "offsetX": -1,
+          "offsetY": -13,
+          "alphaOffset": 9082,
+          "alphaBytes": 43,
+          "pixelSha256": "e02df6607c43e67f4719cae7ab19d753f1e8ce8f965cdb8aeb8d6d1dd08979d8"
+        },
+        {
+          "character": 107,
+          "width": 9,
+          "height": 13,
+          "advance": 9,
+          "offsetX": 1,
+          "offsetY": -13,
+          "alphaOffset": 9125,
+          "alphaBytes": 59,
+          "pixelSha256": "d0501b91f6e646db69afc1465f2c16a124ee6d33385d7bfa7cfe968cb72d0b14"
+        },
+        {
+          "character": 108,
+          "width": 3,
+          "height": 13,
+          "advance": 5,
+          "offsetX": 1,
+          "offsetY": -13,
+          "alphaOffset": 9184,
+          "alphaBytes": 20,
+          "pixelSha256": "f88d6a6e6a944a2fce0287ba1c9e5eaa31888494a6e7df9f3e0bf1e0fab31cac"
+        },
+        {
+          "character": 109,
+          "width": 14,
+          "height": 9,
+          "advance": 15,
+          "offsetX": 1,
+          "offsetY": -9,
+          "alphaOffset": 9204,
+          "alphaBytes": 63,
+          "pixelSha256": "d833c679b89b2090a018444e79e9f94e37d94a7bb554cda33818323d8c2aee54"
+        },
+        {
+          "character": 110,
+          "width": 9,
+          "height": 9,
+          "advance": 10,
+          "offsetX": 1,
+          "offsetY": -9,
+          "alphaOffset": 9267,
+          "alphaBytes": 41,
+          "pixelSha256": "524a54c31e25215f1fb0ebd9b027dabe0b9db7cb8315267342c3b1df493e4214"
+        },
+        {
+          "character": 111,
+          "width": 10,
+          "height": 10,
+          "advance": 10,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 9308,
+          "alphaBytes": 50,
+          "pixelSha256": "bd7431e83164775487b6044eb4a7c124438c1c98d27e159b832097c0076fd6bf"
+        },
+        {
+          "character": 112,
+          "width": 9,
+          "height": 13,
+          "advance": 10,
+          "offsetX": 1,
+          "offsetY": -9,
+          "alphaOffset": 9358,
+          "alphaBytes": 59,
+          "pixelSha256": "ae96fa0d3195432ed6056d21594a1308dae00bac6a0725b204dd714b35ec738b"
+        },
+        {
+          "character": 113,
+          "width": 9,
+          "height": 13,
+          "advance": 10,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 9417,
+          "alphaBytes": 59,
+          "pixelSha256": "b0829638da970dd1ea8625106e010e3b8aecd959d29e09f1b490a32c86c8ef4e"
+        },
+        {
+          "character": 114,
+          "width": 6,
+          "height": 9,
+          "advance": 7,
+          "offsetX": 1,
+          "offsetY": -9,
+          "alphaOffset": 9476,
+          "alphaBytes": 27,
+          "pixelSha256": "e163491357dfbb6764bdb587de14a880e417fbf83e9975df6c5f7de41ee85de9"
+        },
+        {
+          "character": 115,
+          "width": 8,
+          "height": 10,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 9503,
+          "alphaBytes": 40,
+          "pixelSha256": "a96b9a0e9983e2cc2da947153ca090ad1a621a0c78fff18cb633acbbcebfb5cd"
+        },
+        {
+          "character": 116,
+          "width": 7,
+          "height": 12,
+          "advance": 7,
+          "offsetX": 0,
+          "offsetY": -11,
+          "alphaOffset": 9543,
+          "alphaBytes": 42,
+          "pixelSha256": "920993243b52508a1490586fab601975b38358f2c3de7c38d961209a7677baab"
+        },
+        {
+          "character": 117,
+          "width": 8,
+          "height": 10,
+          "advance": 10,
+          "offsetX": 1,
+          "offsetY": -9,
+          "alphaOffset": 9585,
+          "alphaBytes": 40,
+          "pixelSha256": "2c30cff4f01c03062b0c731510c86b1b285953eba5a33665a417cf8f914276c3"
+        },
+        {
+          "character": 118,
+          "width": 9,
+          "height": 9,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 9625,
+          "alphaBytes": 41,
+          "pixelSha256": "c4ac94056bb43367f27bfdca35868a9a97f6ea1d3629b2bca8c841a8b8127f7e"
+        },
+        {
+          "character": 119,
+          "width": 14,
+          "height": 9,
+          "advance": 13,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 9666,
+          "alphaBytes": 63,
+          "pixelSha256": "e20c4b50836339224a6c5af5e2803d0ad0f2eaad8e1693d7fe5ecfda8263751d"
+        },
+        {
+          "character": 120,
+          "width": 9,
+          "height": 9,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 9729,
+          "alphaBytes": 41,
+          "pixelSha256": "d9e43396321cdaa7195b064a90074e0f455865a475460d5e44270e4bec6fe7b1"
+        },
+        {
+          "character": 121,
+          "width": 9,
+          "height": 13,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 9770,
+          "alphaBytes": 59,
+          "pixelSha256": "decc576d99f61ad973d4cc779195dc6a98a01b1403a81e9b74b0d8817ededd1b"
+        },
+        {
+          "character": 122,
+          "width": 8,
+          "height": 9,
+          "advance": 8,
+          "offsetX": 0,
+          "offsetY": -9,
+          "alphaOffset": 9829,
+          "alphaBytes": 36,
+          "pixelSha256": "e3a3fa27341d6fbff771f55998c3ec4ff69ba18bba3cf7c9d3d99b41cf18262a"
+        },
+        {
+          "character": 123,
+          "width": 6,
+          "height": 15,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 9865,
+          "alphaBytes": 45,
+          "pixelSha256": "ccd8d65c4d04966d82df8a06c47668198daabbd650449da09024addcb820af15"
+        },
+        {
+          "character": 124,
+          "width": 3,
+          "height": 17,
+          "advance": 9,
+          "offsetX": 3,
+          "offsetY": -13,
+          "alphaOffset": 9910,
+          "alphaBytes": 26,
+          "pixelSha256": "1a3a9e87976d92220dd5dcec2f28753f04d8a43defcf37a39a90a0a5ead3ea6b"
+        },
+        {
+          "character": 125,
+          "width": 6,
+          "height": 15,
+          "advance": 6,
+          "offsetX": 0,
+          "offsetY": -12,
+          "alphaOffset": 9936,
+          "alphaBytes": 45,
+          "pixelSha256": "e161a99fe5aca99ad18b2845b013ecff208966514866d1d8e6e279848ca849e8"
+        },
+        {
+          "character": 126,
+          "width": 9,
+          "height": 3,
+          "advance": 9,
+          "offsetX": 0,
+          "offsetY": -7,
+          "alphaOffset": 9981,
+          "alphaBytes": 14,
+          "pixelSha256": "ce548b398df09fa7cd71927f34cca28c990d426123116b7247f52dc79353da52"
+        }
+      ]
+    },
+    {
+      "id": "TIMER",
+      "pixels": 32,
+      "weight": 500,
+      "first": 45,
+      "last": 58,
+      "fallback": 45,
+      "characters": "-0123456789:",
+      "baseline": 24,
+      "height": 25,
+      "glyphs": [
+        {
+          "character": 45,
+          "width": 9,
+          "height": 4,
+          "advance": 10,
+          "offsetX": 1,
+          "offsetY": -11,
+          "alphaOffset": 9995,
+          "alphaBytes": 18,
+          "pixelSha256": "a43459ca8b3d0f3967a09b97692c9080e58613516f10cd110dcf5fce0aa227a4"
+        },
+        {
+          "character": 48,
+          "width": 16,
+          "height": 25,
+          "advance": 18,
+          "offsetX": 1,
+          "offsetY": -24,
+          "alphaOffset": 10013,
+          "alphaBytes": 200,
+          "pixelSha256": "47deaa91f6cacec840005dc721496f391b3133f8e4ef6f8f877a31bcdb7732f2"
+        },
+        {
+          "character": 49,
+          "width": 10,
+          "height": 23,
+          "advance": 18,
+          "offsetX": 2,
+          "offsetY": -23,
+          "alphaOffset": 10213,
+          "alphaBytes": 115,
+          "pixelSha256": "eeb7b6ca94ae65245f042a9c5a670036b9957b06a1fc8966a1b5ddf472029dfd"
+        },
+        {
+          "character": 50,
+          "width": 16,
+          "height": 24,
+          "advance": 18,
+          "offsetX": 1,
+          "offsetY": -24,
+          "alphaOffset": 10328,
+          "alphaBytes": 192,
+          "pixelSha256": "769f7cdbd7bcd96b3f5d33ae30b2a61de5a9460252cf498b956d3e12beb8937c"
+        },
+        {
+          "character": 51,
+          "width": 16,
+          "height": 25,
+          "advance": 18,
+          "offsetX": 1,
+          "offsetY": -24,
+          "alphaOffset": 10520,
+          "alphaBytes": 200,
+          "pixelSha256": "0736f4d5d3c063d9ab25b77f9d808e27ce45de790a73b85200020c9ece906d0d"
+        },
+        {
+          "character": 52,
+          "width": 18,
+          "height": 23,
+          "advance": 18,
+          "offsetX": 0,
+          "offsetY": -23,
+          "alphaOffset": 10720,
+          "alphaBytes": 207,
+          "pixelSha256": "6b89a7b7f153250b266fb6c63bafe94c293260bc6bc9aeff9f80d1d50f421f76"
+        },
+        {
+          "character": 53,
+          "width": 16,
+          "height": 24,
+          "advance": 18,
+          "offsetX": 1,
+          "offsetY": -23,
+          "alphaOffset": 10927,
+          "alphaBytes": 192,
+          "pixelSha256": "207d2c06180590f83705af2cfc20076897112f8e629da87f1c574bb5bd097bf1"
+        },
+        {
+          "character": 54,
+          "width": 16,
+          "height": 25,
+          "advance": 18,
+          "offsetX": 1,
+          "offsetY": -24,
+          "alphaOffset": 11119,
+          "alphaBytes": 200,
+          "pixelSha256": "3486b4db93a70a519106fe1b21afbe488dc7aaf7643773df544672ea7fa4eb32"
+        },
+        {
+          "character": 55,
+          "width": 16,
+          "height": 23,
+          "advance": 18,
+          "offsetX": 1,
+          "offsetY": -23,
+          "alphaOffset": 11319,
+          "alphaBytes": 184,
+          "pixelSha256": "3d52f59dfba53d46d3d04e042425bac3ab59a30066b36eb57778f51dda898736"
+        },
+        {
+          "character": 56,
+          "width": 16,
+          "height": 25,
+          "advance": 18,
+          "offsetX": 1,
+          "offsetY": -24,
+          "alphaOffset": 11503,
+          "alphaBytes": 200,
+          "pixelSha256": "ddaa7a9c960c73d45078bee3273efb6000e28eb081e60d2cbf73a8384312f14b"
+        },
+        {
+          "character": 57,
+          "width": 16,
+          "height": 25,
+          "advance": 18,
+          "offsetX": 1,
+          "offsetY": -24,
+          "alphaOffset": 11703,
+          "alphaBytes": 200,
+          "pixelSha256": "6997361bf9482e0823911d490752327222199685286254e86fd456ea83a3b1e0"
+        },
+        {
+          "character": 58,
+          "width": 5,
+          "height": 19,
+          "advance": 9,
+          "offsetX": 2,
+          "offsetY": -18,
+          "alphaOffset": 11903,
+          "alphaBytes": 48,
+          "pixelSha256": "3286087b8ead9fdefbcb22e3726a2da9e159a3c0580ba11aeeece6e133e58810"
+        }
+      ]
+    }
+  ],
+  "generated": {
+    "gui_assets.c": "ec704908cf14a27bbb93c763ab252936f925ce58d85beb3d6aec46bc20838762",
+    "gui_fonts.c": "9c3556738ddf8672626407cabc6e777e9e45d0419ee57208cc9932e4700ed2b2"
+  }
+}

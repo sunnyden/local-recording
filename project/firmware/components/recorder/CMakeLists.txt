@@ -1,2 +1,3 @@
-idf_component_register(SRCS "storage.c" "recording.c" "recording_name.c" INCLUDE_DIRS "include"
-    REQUIRES board audio_io recorder_core esp_timer)
+idf_component_register(SRCS "storage.c" "recording.c" "recording_name.c" "recording_codec.cpp"
+    INCLUDE_DIRS "include"
+    REQUIRES board audio_io recorder_core esp_timer heap esphome__micro-opus)

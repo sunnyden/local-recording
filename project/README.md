@@ -1,6 +1,6 @@
 # Embedded recorder
 
-ESP32-S3 WAV recorder, OneDrive uploader and hands-free Azure Voice Live client
+ESP32-S3 Ogg Opus recorder, OneDrive uploader and hands-free Azure Voice Live client
 for the ATK_DNESP32S3_V1.4 board.
 
 The implementation is split into:
@@ -14,12 +14,12 @@ The implementation is split into:
 | `protocols\` | Shared BLE/voice contracts and binary fixtures |
 | `docs\` | Architecture, operations and deployment notes |
 
-Recordings are signed PCM16 WAV, 16000 Hz, mono. The user selects recording,
+Recordings are Ogg Opus, 16000 Hz mono, constrained VBR at 24 kbit/s. The user selects recording,
 playback, synchronization or AI as mutually exclusive modes. AI capture and
 speaker playback are simultaneous; Voice Live owns VAD and echo cancellation.
 KEY3 moves up, KEY1 down, KEY0 enters/confirms, KEY2 exits/goes back.
 
-OneDrive synchronization is explicitly selected and retains the local WAV.
+OneDrive synchronization is explicitly selected and retains the local `.opus`.
 The destination is root-level `local-recording/`, not the special AppFolder.
 MP3, background sync, wake-word activation and actual remote tool execution
 are outside this MVP.

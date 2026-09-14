@@ -14,6 +14,13 @@
 #include "freertos/task.h"
 #include <stdio.h>
 #include <string.h>
+#include "sdkconfig.h"
+#ifdef CONFIG_RECORDER_GUI
+#include "gui.h"
+#endif
+#ifdef CONFIG_RECORDER_GUI_TEST_INPUT
+#include "gui_test_input.h"
+#endif
 
 static const char *menu[] = {"RECORD", "RECORDINGS", "SYNC", "AI CONVERSATION", "SETUP"};
 static void show(unsigned row, const char *text, bool selected)
@@ -28,8 +35,9 @@ void app_main(void)
     esp_log_level_set("recorder", ESP_LOG_INFO);
     uint32_t flash_size = 0;
     esp_flash_get_size(NULL, &flash_size);
-    ESP_LOGI("recorder", "Flash=%lu PSRAM=%u internal=%u DMA largest=%u",
+    ESP_LOGI("recorder", "Flash=%lu PSRAM=%u psram_free=%u internal=%u DMA largest=%u",
         (unsigned long)flash_size, heap_caps_get_total_size(MALLOC_CAP_SPIRAM),
+        heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
         heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
         heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
     esp_err_t err = board_init();
@@ -45,6 +53,10 @@ void app_main(void)
     if (network == ESP_OK) identity_init();
     ESP_LOGI("recorder", "SD=%s audio=%s recovered=%u failed=%u", esp_err_to_name(sd),
         esp_err_to_name(audio), repaired, failed);
+#ifdef CONFIG_RECORDER_GUI
+    gui_app_run(sd, audio, repaired, failed);
+    return;
+#endif
     show(0, "EMBEDDED RECORDER", false);
     char status[64] = "";
     snprintf(status, sizeof(status), "SD %s FIX %u BAD %u", sd == ESP_OK ? "OK" : "ERROR", repaired, failed);
@@ -68,6 +80,24 @@ void app_main(void)
         board_key_t key;
         err = board_key_read(&key);
         if (err != ESP_OK) { key = KEY_NONE; show(13, "KEY I2C ERROR", false); }
+#ifdef CONFIG_RECORDER_GUI_TEST_INPUT
+        ui_input_event_t input;
+        if (gui_console_poll(&input)) {
+            if (input.kind == UI_INPUT_PING) gui_console_reply("pong");
+            else if (input.kind == UI_INPUT_STATUS)
+                printf("UI_TEST {\"v\":1,\"event\":\"status\",\"screen\":\"text\",\"mode\":%u,\"selected\":%u,\"demo\":false,\"sensitive_setup\":%s,\"heap_free\":%u,\"heap_min\":%u,\"psram_free\":%u,\"psram_min\":%u,\"dma_largest\":%u,\"overruns\":%lu,\"gui_ram_bytes\":0,\"asset_bytes\":0,\"font_bytes\":0,\"display_dma_bytes\":10240}\n",
+                    (unsigned)state.mode, (unsigned)selected, recorder_setup_active() ? "true" : "false",
+                    heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                    heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+                    heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                    heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM),
+                    heap_caps_get_largest_free_block(MALLOC_CAP_DMA), (unsigned long)state.overruns);
+            else if (input.kind >= UI_INPUT_UP && input.kind <= UI_INPUT_BACK) {
+                if (key == KEY_NONE) key = (board_key_t)(KEY_UP + input.kind - UI_INPUT_UP);
+                gui_console_reply("key");
+            } else gui_console_reply("error");
+        }
+#endif
         if (voice.active) {
             if (key == KEY_BACK) voice_client_stop();
             static const char *last_voice_state;
@@ -109,6 +139,19 @@ void app_main(void)
             if (previous != LOCAL_IDLE) {
                 snprintf(status, sizeof(status), "%s", state.error == ESP_OK ? "SAVED / FINISHED" : esp_err_to_name(state.error));
                 show(10, status, false);
+                ESP_LOGI("recorder",
+                    "Local audio done mode=%u samples=%lu bytes=%lu queue_peak=%lu overruns=%lu "
+                    "codec_us_avg=%lu codec_us_max=%lu internal=%u internal_min=%u "
+                    "psram=%u psram_min=%u dma_largest=%u",
+                    (unsigned)previous, (unsigned long)state.samples,
+                    (unsigned long)state.file_bytes,
+                    (unsigned long)state.queue_peak, (unsigned long)state.overruns,
+                    (unsigned long)state.codec_us_average, (unsigned long)state.codec_us_max,
+                    heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                    heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+                    heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                    heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM),
+                    heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
                 redraw = true;
             }
             if (key == KEY_BACK) { catalog = false; redraw = true; }

@@ -1,34 +1,34 @@
 # Timestamped recordings and synchronous processing
 
 The owner confirmed the pre-change record/play/Sync/AI baseline. This extension
-does not change `recorder.voice.v1`, the 16000-sample playback capacity, 50-frame
-PSRAM voice microphone queue, codec settings, or credential provisioning.
+does not change `recorder.voice.v1`, the 16000-sample playback capacity,
+50-frame PSRAM voice microphone queue, or credential provisioning.
 
 ## Names and capture time
 
-New captures use `AudioRecording_YYYYMMDD_HHMMSS.wav` with a fixed timezone
+New captures use `AudioRecording_YYYYMMDD_HHMMSS.opus` with a fixed timezone
 configured by `CONFIG_RECORDER_TIMEZONE_OFFSET_MINUTES` (east-positive minutes,
 default `480`, UTC+08:00; range -720 to 840). The UTC system clock is unchanged.
 The snapshot is taken before recording starts, not during upload.
 
 Same-second/backward-clock collisions reserve `.part` exclusively and use
-`_001` through `_999`. Existing WAV, partial, checkpoint, and metadata names
+`_001` through `_999`. Existing Opus, partial, checkpoint, and metadata names
 reserve the stem. Exhaustion fails visibly, never overwrites.
 Before a valid UTC clock is available, recording remains usable with
-`AudioRecording_UNTIMED_<16 random hex digits>.wav`. No later automatic rename
-or fabricated timestamp occurs. Existing `rec-*.wav` and `rec-*.part` remain
-accepted by playback, catalog, recovery and Sync.
+`AudioRecording_UNTIMED_<16 random hex digits>.opus`. No later automatic rename
+or fabricated timestamp occurs. Existing WAV files remain untouched but are not
+accepted by playback, catalog, recovery, or Sync.
 
 A small, fsynced `<stem>.meta` stores version, clock-valid flag, start UTC seconds,
 and the capture's effective offset. It survives finalization/recovery and later
 timezone changes. Missing legacy metadata or invalid metadata omits the optional
 `recorded_at` hint; invalid metadata is logged without its contents. The existing
-alternating 16-byte `.ckp` format is unchanged. Metadata and jobs never appear in
+alternating 24-byte `.ckp` slots commit complete Ogg page offsets. Metadata and jobs never appear in
 the playable catalog.
 
 ## Upload receipt and outbox
 
-Each successfully uploaded WAV gets an SD `<stem>.job` containing only nonsecrets:
+Each successfully uploaded Opus recording gets an SD `<stem>.job` containing only nonsecrets:
 drive ID, item ID, SHA-1, source size, name, optional RFC3339 capture timestamp,
 processing state, retry-not-before, and confirmed sidecar IDs. Two checksummed
 slots retain the preceding state if an update tears. A completed slot is kept as
@@ -42,15 +42,15 @@ longer used for completion. Existing local files without receipts can notify
 processing after remote hash verification.
 
 On each explicit Sync, the currently authenticated Graph drive is resolved
-first. Its durable jobs are processed before scanning WAVs, including jobs whose
-local WAV is absent. Matching receipts avoid WAV reupload. Jobs bound to another
-drive are never submitted; changing accounts or mutating a receipted WAV fails
+first. Its durable jobs are processed before scanning Opus recordings, including
+jobs whose local source is absent. Matching receipts avoid reupload. Jobs bound
+to another drive are never submitted; changing accounts or mutating a receipted source fails
 visibly rather than silently transferring ownership. The backend additionally
 authorizes the source with the API-B user's OBO Graph identity.
 
 The SD card is not an authorization boundary. CRCs detect torn/corrupt records,
 not malicious changes. If both slots are corrupt or SD persistence fails, Sync
-stops visibly and retains the WAV; do not delete these files as an automatic
+stops visibly and retains the Opus recording; do not delete these files as an automatic
 repair. Lost SD data requires operator-controlled reconciliation.
 
 ## Processing stream, status, and UI behavior
@@ -97,9 +97,9 @@ there is no detached job or queue worker.
 The display follows **RESOLVING**, **DOWNLOADING**, **VALIDATING**,
 **TRANSCRIBING**, **SAVING TRANSCRIPT**, and **VERIFYING**. Percentages appear
 only when the backend supplies actual completed/total byte counts. A heartbeat
-does not imply incremental Speech percentage, and the completed WAV upload's
+does not imply incremental Speech percentage, and the completed recording upload's
 100% is not displayed as transcription progress.
-When the backend supplies WAV-to-Speech upload byte counts in the `transcribing`
+When the backend supplies Opus-to-Speech upload byte counts in the `transcribing`
 phase, the label is **SPEECH UPLOAD**, not **TRANSCRIBING xx%**. Phase-only
 heartbeats return to **TRANSCRIBING** without a percentage.
 
@@ -116,7 +116,7 @@ their original 10-second timeout and response capacity. Processing messages and
 status bodies are limited to 4096 bytes. After uncertain stream delivery, the
 device makes at most three status-only reconciliation calls; a still-active
 operation remains **PROCESSING / CHECKING / UPLOADED PROCESS PENDING**, not a
-claim of failed WAV upload or a false hard transcription deadline. This Sync
+claim of failed recording upload or a false hard transcription deadline. This Sync
 never sends a second processing start or an HTTP fallback replay. A later
 explicit Sync can retry the retained receipt after checking status again.
 Numeric Retry-After on status 429/503 persists a not-before time across reboot.
@@ -125,16 +125,16 @@ Cancellation, missing API-B consent, malformed responses, timeouts, and provider
 errors cannot turn upload success into transcript success. The UI distinguishes
 **UPLOADED PROCESS PENDING** and stable error codes (for example
 `consent_required`), without erasing Graph credentials. Other recordings can
-still upload after a processing failure. Above 30 minutes, PCM WAV upload and
+still upload after a processing failure. Above 30 minutes, Ogg Opus upload and
 playback remain valid; automatic processing is skipped with a friendly message.
 Backend `recording_too_long` receives the same treatment.
 
 Already completed receipts remain skipped. For pending transcription, a proxy
-`source_not_found` is not sufficient to declare the WAV deleted: the device
+`source_not_found` is not sufficient to declare the recording deleted: the device
 checks the exact uploaded item ID directly with its current drive's Graph
 authorization. Only a successful HTTP 404 on that check saves the terminal
 `PROCESS_REMOTE_MISSING` receipt. Later Sync operations skip both reupload and
-processing for that item, even across reboot, while retaining the SD WAV.
+processing for that item, even across reboot, while retaining the SD Opus file.
 Authentication failures, network errors, and a missing backend folder while
 the source item still exists remain pending rather than silently discarded.
 The screen reports **DELETED REMOTE SKIPPED**. Pending error codes now remain
@@ -153,8 +153,8 @@ The second script runs actual filename/storage/checkpoint/outbox C against a
 project-local host filesystem, then actual cloud Sync/processing/UI sources with
 mock Graph, API-B, task scheduling and hashing boundaries. Cases cover all
 upload-success paths, multiple durable jobs, capture metadata, cancelled or
-uncertain processing, malformed/versioned responses, account binding, long WAVs,
-Retry-After, and replay without a WAV. The first script retains the existing
+uncertain processing, malformed/versioned responses, account binding, long Opus
+recordings, Retry-After, and replay without a local source. The first script retains the existing
 audio/voice/identity/upload suite and extends actual HTTPS deadline/body tests.
 The stream-specific executable tests the actual WebSocket client with network
 fragmentation, 250-second heartbeats, cancellation/stalls, ping-only liveness,

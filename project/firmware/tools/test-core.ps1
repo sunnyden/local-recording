@@ -11,7 +11,7 @@ $env:ZIG_GLOBAL_CACHE_DIR = Join-Path $build "zig-global-cache"
 $env:ZIG_LOCAL_CACHE_DIR = Join-Path $build "zig-local-cache"
 Push-Location $build
 try {
-    & $Compiler cc -std=c11 -Wall -Wextra -Werror -D_CRT_SECURE_NO_WARNINGS -I "$root\components\recorder_core\include" "$root\tests\core_test.c" "$root\components\recorder_core\wav.c" "$root\components\recorder_core\voice_frame.c" -o core-test.exe
+    & $Compiler cc -std=c11 -Wall -Wextra -Werror -D_CRT_SECURE_NO_WARNINGS -I "$root\components\recorder_core\include" "$root\tests\core_test.c" "$root\components\recorder_core\ogg_opus.c" "$root\components\recorder_core\voice_frame.c" -o core-test.exe
     if ($LASTEXITCODE) { throw "Portable core compile failed ($LASTEXITCODE)" }
     & .\core-test.exe
     if ($LASTEXITCODE) { throw "Portable core tests failed ($LASTEXITCODE)" }
@@ -30,7 +30,7 @@ try {
         -I "$root\tests\host" -I "$root\components\cloud_sync\include" `
         -I "$root\components\recorder_core\include" -I $cjson `
         "$root\tests\upload_test.c" "$root\components\cloud_sync\upload.c" `
-        "$root\components\recorder_core\wav.c" "$root\components\recorder_core\voice_frame.c" `
+        "$root\components\recorder_core\ogg_opus.c" "$root\components\recorder_core\voice_frame.c" `
         "$cjson\cJSON.c" -o upload-test.exe
     if ($LASTEXITCODE) { throw "Host uploader compile failed ($LASTEXITCODE)" }
     & .\upload-test.exe

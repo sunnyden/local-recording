@@ -8,10 +8,10 @@ from .graph import identifier
 from .intelligence_errors import IntelligenceError
 from .speech import SPEECH_VERSION
 
-MAX_WAV_BYTES = 1800 * 16000 * 2 + 65536
-PIPELINE = {"name": "recorder-fast-transcription", "version": 1,
+MAX_OPUS_BYTES = 16 * 1024 * 1024
+PIPELINE = {"name": "recorder-fast-transcription", "version": 2,
             "speech_api_version": SPEECH_VERSION, "language": "auto-multilingual",
-            "format": "pcm16-mono-16000", "max_duration_seconds": 1800}
+            "format": "ogg-opus-mono-16000-24k", "max_duration_seconds": 1800}
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,7 @@ class RecordingRequest:
                 or not isinstance(value["source_sha1"], str)
                 or not re.fullmatch("[0-9a-f]{40}", value["source_sha1"])):
             raise IntelligenceError("invalid_request", 400)
-        if value["source_size"] > MAX_WAV_BYTES:
+        if value["source_size"] > MAX_OPUS_BYTES:
             raise IntelligenceError("recording_too_long", 413)
         recorded_at = value.get("recorded_at")
         if recorded_at is not None:
@@ -54,9 +54,9 @@ class RecordingRequest:
 
 
 def verify_source(item, request):
-    if "file" not in item or not item["name"].lower().endswith(".wav"):
+    if "file" not in item or not item["name"].lower().endswith(".opus"):
         raise IntelligenceError("unsupported_audio", 415)
-    if type(item.get("size")) is not int or item["size"] > MAX_WAV_BYTES:
+    if type(item.get("size")) is not int or item["size"] > MAX_OPUS_BYTES:
         raise IntelligenceError("recording_too_long", 413)
     if item["size"] != request.source_size:
         raise IntelligenceError("source_changed", 409)

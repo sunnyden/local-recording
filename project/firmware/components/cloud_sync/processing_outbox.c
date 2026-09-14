@@ -36,7 +36,7 @@ static bool bounded(const char *s, size_t n, bool required)
 bool processing_job_valid(const processing_job_t *job)
 {
     if (!job || !bounded(job->name, sizeof(job->name), true) ||
-        !storage_valid_name(job->name) || job->source_size < 44 ||
+        !storage_valid_name(job->name) || job->source_size < 1 ||
         job->state > PROCESS_REMOTE_MISSING || job->retry_not_before < 0 ||
         !bounded(job->drive_id, sizeof(job->drive_id), true) ||
         !bounded(job->item_id, sizeof(job->item_id), true) ||
@@ -126,9 +126,9 @@ esp_err_t processing_outbox_catalog(size_t index, char name[65], size_t *count)
     while ((entry = readdir(dir))) {
         size_t n = strlen(entry->d_name);
         if (n < 5 || n > 64 || strcmp(entry->d_name + n - 4, ".job")) continue;
-        char candidate[65];
+        char candidate[66];
         strcpy(candidate, entry->d_name);
-        strcpy(candidate + n - 4, ".wav");
+        strcpy(candidate + n - 4, ".opus");
         if (!storage_valid_name(candidate)) continue;
         if ((*count)++ == index) strcpy(name, candidate);
     }

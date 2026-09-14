@@ -1,5 +1,6 @@
 #include "recorder.h"
 #include "board.h"
+#include "esp_heap_caps.h"
 #include "esp_random.h"
 #include "sdkconfig.h"
 #include <dirent.h>
@@ -21,14 +22,6 @@ bool storage_valid_name(const char *name)
 static esp_err_t durable(FILE *f)
 {
     return fflush(f) == 0 && fsync(fileno(f)) == 0 ? ESP_OK : ESP_FAIL;
-}
-static esp_err_t finalize(recording_file_t *r)
-{
-    uint8_t header[44];
-    if (fflush(r->file) || ftruncate(fileno(r->file), r->bytes + 44) ||
-        !wav_header(header, r->bytes) || fseek(r->file, 0, SEEK_SET) ||
-        fwrite(header, 1, 44, r->file) != 44) return ESP_FAIL;
-    return durable(r->file);
 }
 static void journal_path(const char *path, char output[128])
 {
@@ -67,18 +60,24 @@ esp_err_t storage_recording_time(const char *name, recording_time_t *stamp)
 }
 static esp_err_t checkpoint(recording_file_t *r)
 {
-    uint8_t data[16];
-    recording_checkpoint_encode(data, r->bytes);
+    long end = ftell(r->file);
+    if (end <= 0 || (uint64_t)end > UINT32_MAX || !r->writer ||
+        r->writer->last_page_offset >= (uint32_t)end) return ESP_FAIL;
+    r->bytes = (uint32_t)end;
+    uint8_t data[24];
+    recording_checkpoint_encode(data, r->bytes, r->writer->last_page_offset);
     if (durable(r->file) != ESP_OK || !r->journal ||
-        fseek(r->journal, (r->journal_slot++ % 2) * 16, SEEK_SET) ||
-        fwrite(data, 1, 16, r->journal) != 16 || durable(r->journal) != ESP_OK)
+        fseek(r->journal, (r->journal_slot++ % 2) * sizeof(data), SEEK_SET) ||
+        fwrite(data, 1, sizeof(data), r->journal) != sizeof(data) ||
+        durable(r->journal) != ESP_OK)
         return ESP_FAIL;
     r->checkpoint = r->bytes;
+    r->checkpoint_page = r->writer->last_page_offset;
     return ESP_OK;
 }
-esp_err_t storage_begin(recording_file_t *r)
+esp_err_t storage_begin(recording_file_t *r, uint16_t pre_skip)
 {
-    if (!r) return ESP_ERR_INVALID_ARG;
+    if (!r || !pre_skip) return ESP_ERR_INVALID_ARG;
     memset(r, 0, sizeof(*r));
     recording_time_t stamp = {.utc = time(NULL),
         .offset_minutes = CONFIG_RECORDER_TIMEZONE_OFFSET_MINUTES};
@@ -98,51 +97,82 @@ esp_err_t storage_begin(recording_file_t *r)
         int fd = open(r->path, O_CREAT | O_EXCL | O_RDWR, 0600);
         if (fd < 0) { if (errno == EEXIST) continue; return ESP_FAIL; }
         r->file = fdopen(fd, "wb+");
-        if (!r->file) { close(fd); return ESP_FAIL; }
+        if (!r->file) {
+            close(fd);
+            storage_abort(r);
+            return ESP_FAIL;
+        }
         int metadata_fd = open(meta, O_CREAT | O_EXCL | O_WRONLY, 0600);
         FILE *metadata = metadata_fd < 0 ? NULL : fdopen(metadata_fd, "wb");
         if (!metadata) {
             if (metadata_fd >= 0) close(metadata_fd);
-            fclose(r->file); r->file = NULL; return ESP_FAIL;
+            storage_abort(r);
+            return ESP_FAIL;
         }
         bool saved = fprintf(metadata, "RMT1 %d %lld %d\n", stamp.clock_valid,
             (long long)stamp.utc, stamp.offset_minutes) > 0 && durable(metadata) == ESP_OK;
         if (fclose(metadata)) saved = false;
-        if (!saved) { fclose(r->file); r->file = NULL; return ESP_FAIL; }
-        uint8_t header[44];
-        wav_header(header, 0);
-        if (fwrite(header, 1, 44, r->file) != 44 || durable(r->file) != ESP_OK) {
-            fclose(r->file); r->file = NULL; return ESP_FAIL;
+        if (!saved) {
+            storage_abort(r);
+            return ESP_FAIL;
+        }
+        r->writer = heap_caps_calloc(1, sizeof(*r->writer),
+                                     MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!r->writer ||
+            !ogg_opus_writer_begin(r->writer, r->file, (uint32_t)random_id | 1u, pre_skip) ||
+            durable(r->file) != ESP_OK) {
+            storage_abort(r);
+            return ESP_FAIL;
         }
         char path[128];
         journal_path(r->path, path);
         r->journal = fopen(path, "wb+");
-        if (!r->journal || checkpoint(r) != ESP_OK) {
-            if (r->journal) fclose(r->journal);
-            fclose(r->file); r->file = r->journal = NULL; return ESP_FAIL;
+        if (!r->journal) {
+            storage_abort(r);
+            return ESP_FAIL;
         }
         return ESP_OK;
     }
     return ESP_ERR_INVALID_STATE;
 }
-esp_err_t storage_append(recording_file_t *r, const void *pcm, size_t bytes)
+static esp_err_t append_packet(recording_file_t *r, const void *packet, size_t bytes,
+                               uint32_t samples, bool output)
 {
-    if (!r || !r->file || !pcm || !bytes || (bytes & 1)) return ESP_ERR_INVALID_ARG;
-    if (bytes > WAV_MAX_DATA - r->bytes) return ESP_ERR_INVALID_SIZE;
-    size_t written = fwrite(pcm, 1, bytes, r->file);
-    r->bytes += written & ~1u;
-    if (written != bytes) return ESP_FAIL;
-    if (r->bytes - r->checkpoint >= PCM_RATE * 2) {
-        esp_err_t err = checkpoint(r);
-        if (err != ESP_OK) return err;
-        r->checkpoint = r->bytes;
-    }
+    if (!r || !r->file || !r->writer || !packet || !bytes || samples != PCM_SAMPLES)
+        return ESP_ERR_INVALID_ARG;
+    long current = ftell(r->file);
+    if (current < 0 || (uint64_t)current + r->writer->body_size + bytes +
+        27u + 255u > OPUS_MAX_FILE_BYTES) return ESP_ERR_INVALID_SIZE;
+    if (output && samples > UINT32_MAX - r->samples) return ESP_ERR_INVALID_SIZE;
+    uint32_t previous_page = r->writer->last_page_offset;
+    if (!ogg_opus_writer_packet(r->writer, packet, bytes, samples)) return ESP_FAIL;
+    if (output) r->samples += samples;
+    if (r->writer->last_page_offset != previous_page &&
+        r->writer->last_page_offset != r->checkpoint_page)
+        return checkpoint(r);
     return ESP_OK;
+}
+esp_err_t storage_append(recording_file_t *r, const void *packet, size_t bytes,
+                         uint32_t samples)
+{
+    return append_packet(r, packet, bytes, samples, true);
+}
+esp_err_t storage_append_padding(recording_file_t *r, const void *packet,
+                                 size_t bytes, uint32_t samples)
+{
+    return append_packet(r, packet, bytes, samples, false);
 }
 esp_err_t storage_finish(recording_file_t *r)
 {
-    if (!r || !r->file) return ESP_ERR_INVALID_STATE;
-    esp_err_t err = finalize(r);
+    if (!r || !r->file || !r->writer) return ESP_ERR_INVALID_STATE;
+    esp_err_t err = ogg_opus_writer_finish(r->writer, r->samples) &&
+        durable(r->file) == ESP_OK
+        ? ESP_OK : ESP_FAIL;
+    long end = ftell(r->file);
+    if (end <= 0 || (uint64_t)end > UINT32_MAX) err = ESP_FAIL;
+    else r->bytes = (uint32_t)end;
+    heap_caps_free(r->writer);
+    r->writer = NULL;
     if (fclose(r->file) && err == ESP_OK) err = ESP_FAIL;
     r->file = NULL;
     if (r->journal) {
@@ -154,7 +184,7 @@ esp_err_t storage_finish(recording_file_t *r)
     snprintf(final, sizeof(final), "%s", r->path);
     char *extension = strrchr(final, '.');
     if (!extension) return ESP_FAIL;
-    strcpy(extension, ".wav");
+    strcpy(extension, ".opus");
     struct stat st;
     if (stat(final, &st) == 0) return ESP_ERR_INVALID_STATE;
     if (rename(r->path, final)) return ESP_FAIL;
@@ -162,6 +192,30 @@ esp_err_t storage_finish(recording_file_t *r)
     journal_path(r->path, journal);
     if (unlink(journal) && errno != ENOENT) return ESP_FAIL;
     return ESP_OK;
+}
+esp_err_t storage_abort(recording_file_t *r)
+{
+    if (!r) return ESP_ERR_INVALID_ARG;
+    bool ok = true;
+    if (r->writer) {
+        heap_caps_free(r->writer);
+        r->writer = NULL;
+    }
+    if (r->file) {
+        if (fclose(r->file)) ok = false;
+        r->file = NULL;
+    }
+    if (r->journal) {
+        if (fclose(r->journal)) ok = false;
+        r->journal = NULL;
+    }
+    char journal[128], metadata[128];
+    journal_path(r->path, journal);
+    metadata_path(r->path, metadata);
+    if (unlink(r->path) && errno != ENOENT) ok = false;
+    if (unlink(journal) && errno != ENOENT) ok = false;
+    if (unlink(metadata) && errno != ENOENT) ok = false;
+    return ok ? ESP_OK : ESP_FAIL;
 }
 esp_err_t storage_recover(unsigned *repaired, unsigned *failed)
 {
@@ -178,25 +232,33 @@ esp_err_t storage_recover(unsigned *repaired, unsigned *failed)
         char journal[128];
         journal_path(r.path, journal);
         FILE *checkpoints = fopen(journal, "rb");
-        uint32_t safe_bytes = 0;
+        uint32_t safe_bytes = 0, safe_page = 0;
         bool found = false;
         if (checkpoints) {
-            uint8_t data[16];
-            for (unsigned i = 0; i < 2 && fread(data, 1, 16, checkpoints) == 16; ++i) {
-                uint32_t bytes;
-                if (recording_checkpoint_decode(data, &bytes) && (!found || bytes > safe_bytes)) {
-                    safe_bytes = bytes; found = true;
+            uint8_t data[24];
+            for (unsigned i = 0; i < 2 &&
+                 fread(data, 1, sizeof(data), checkpoints) == sizeof(data); ++i) {
+                uint32_t bytes, page;
+                if (recording_checkpoint_decode(data, &bytes, &page) &&
+                    (!found || bytes > safe_bytes)) {
+                    safe_bytes = bytes; safe_page = page; found = true;
                 }
             }
             fclose(checkpoints);
         }
-        if (!found || !wav_repair_limit(r.file, safe_bytes) || durable(r.file) != ESP_OK) {
+        if (!found || !ogg_opus_repair(r.file, safe_bytes, safe_page) ||
+            durable(r.file) != ESP_OK) {
             fclose(r.file); ++*failed; continue;
         }
-        wav_info_t info;
-        if (!wav_parse(r.file, &info)) { fclose(r.file); ++*failed; continue; }
-        r.bytes = info.bytes;
-        if (storage_finish(&r) == ESP_OK) ++*repaired; else ++*failed;
+        if (fclose(r.file)) { ++*failed; continue; }
+        r.file = NULL;
+        char final[128];
+        snprintf(final, sizeof(final), "%s", r.path);
+        strcpy(strrchr(final, '.'), ".opus");
+        struct stat st;
+        if (stat(final, &st) == 0 || rename(r.path, final)) { ++*failed; continue; }
+        if (unlink(journal) && errno != ENOENT) { ++*failed; continue; }
+        ++*repaired;
     }
     closedir(dir);
     return *failed ? ESP_FAIL : ESP_OK;

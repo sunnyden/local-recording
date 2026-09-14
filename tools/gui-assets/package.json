@@ -1,0 +1,17 @@
+{
+  "name": "recorder-gui-assets",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Developer-only deterministic rasterization of the recorder GUI subset",
+  "type": "module",
+  "engines": { "node": "24.16.0" },
+  "scripts": {
+    "generate": "node generate.mjs",
+    "check": "node generate.mjs --check",
+    "test": "node --test test.mjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "fontkit": "2.0.4"
+  }
+}

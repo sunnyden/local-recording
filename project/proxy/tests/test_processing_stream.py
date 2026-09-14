@@ -19,7 +19,7 @@ from recorder_proxy import processing_stream
 from recorder_proxy.intelligence_errors import IntelligenceError
 from recorder_proxy.processing_stream import ProcessingStream, SUBPROTOCOL
 from recorder_proxy.speech import STREAM_READ_TIMEOUT_SECONDS
-from intelligence_fakes import wav_bytes
+from intelligence_fakes import opus_bytes
 from test_app import deployment
 from test_auth import token
 from test_processing import processing
@@ -271,7 +271,7 @@ def test_stream_expiry_cancels_speech_and_cleans(api, monkeypatch):
     assert service.calls and not drive.writes
     assert client.post("/v1/recordings/status", json=body,
                        headers={"Authorization": auth}).json()["status"] == "not_started"
-    assert not list(Path.cwd().glob(".recording-*.wav"))
+    assert not list(Path.cwd().glob(".recording-*.opus"))
 
 
 def test_stream_disconnect_does_not_leave_operation(api):
@@ -381,7 +381,7 @@ async def test_stream_continuing_download_exceeds_old_budget_with_measured_bytes
     import hashlib
 
     processor, request, user, drive, _, _ = processing
-    content = wav_bytes(frames=65536)
+    content = opus_bytes(frames=700000)
     drive.add("audio", drive.items["audio"]["name"], "folder", content)
     request = replace(request, source_sha1=hashlib.sha1(content).hexdigest(), source_size=len(content))
     processor.settings = replace(processor.settings, processing_deadline_seconds=0.005)
@@ -414,7 +414,8 @@ async def test_stream_continuing_download_exceeds_old_budget_with_measured_bytes
     processor.graph_factory = graph
     try:
         assert (await processor.handle(user, request, stream=True, progress=progress))["status"] == "completed"
-        assert updates == [0, 65536, 131072, len(content)]
+        expected = [0, *range(65536, len(content), 65536), len(content)]
+        assert updates == expected
     finally:
         await graph_http.aclose()
 
@@ -462,7 +463,7 @@ async def test_stream_download_stall_and_cancel_release_spool(processing, failur
                 await work
         assert closed.is_set() and processor.running is None
         assert not service.calls and not drive.writes
-        assert not list(Path.cwd().glob(".recording-*.wav"))
+        assert not list(Path.cwd().glob(".recording-*.opus"))
     finally:
         await graph_http.aclose()
 

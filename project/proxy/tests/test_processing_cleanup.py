@@ -99,7 +99,7 @@ async def test_client_cancel_then_auth_expiry_waits_for_pending_spool_open(
 
 @pytest.mark.parametrize("operation", ["write", "close", "failure"])
 async def test_disk_joins_thread_through_repeated_cancellation(operation):
-    path = Path(".processing-cleanup-test.wav")
+    path = Path(".processing-cleanup-test.opus")
     file = path.open("w+b")
     entered, release = asyncio.Event(), threading.Event()
     loop = asyncio.get_running_loop()

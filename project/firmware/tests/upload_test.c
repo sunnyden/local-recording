@@ -148,7 +148,7 @@ static void run(FILE *file, enum scenario which, bool success)
 }
 int main(void)
 {
-    FILE *file = fopen("upload-fixture.wav", "wb+");
+    FILE *file = fopen("upload-fixture.opus", "wb+");
     assert(file);
     unsigned char buffer[4096];
     for (unsigned offset = 0; offset < file_size;) {
@@ -166,7 +166,7 @@ int main(void)
     run(file, QUOTA, false);
     run(file, CANCEL, false);
     fclose(file);
-    remove("upload-fixture.wav");
+    remove("upload-fixture.opus");
     puts("PASS: actual streamed uploader, short writes, range reconciliation, throttling and cancellation");
     return 0;
 }

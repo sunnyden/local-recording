@@ -1,10 +1,8 @@
 import asyncio
 from dataclasses import replace
 import hashlib
-import io
 import json
 from pathlib import Path
-import struct
 
 import httpx
 import pytest
@@ -12,10 +10,10 @@ import pytest
 from recorder_proxy.graph import GraphClient
 from recorder_proxy.intelligence_errors import IntelligenceError
 from recorder_proxy.obo import UserContext
-from recorder_proxy.processing import RecordingProcessor, validate_wav
-from recorder_proxy.recording_contract import MAX_WAV_BYTES, RecordingRequest
+from recorder_proxy.processing import RecordingProcessor, validate_opus
+from recorder_proxy.recording_contract import MAX_OPUS_BYTES, RecordingRequest
 from recorder_proxy.speech import FastTranscription, SPEECH_SCOPE
-from intelligence_fakes import Credential, Drive, SpeechService, Tokens, wav_bytes
+from intelligence_fakes import Credential, Drive, SpeechService, Tokens, opus_bytes
 
 
 @pytest.fixture
@@ -33,7 +31,7 @@ async def processing(settings, principal, monkeypatch):
                                len(drive.content["audio"]), "2026-09-07T22:05:36+08:00")
     user = UserContext(principal, "validated-B")
     yield processor, request, user, drive, service, credential
-    assert not list(Path.cwd().glob(".recording-*.wav"))
+    assert not list(Path.cwd().glob(".recording-*.opus"))
     await speech.close()
     await graph_http.aclose()
 
@@ -87,7 +85,7 @@ async def test_partial_write_retries_without_retranscription_or_overwrite(proces
 
 async def test_conflicting_user_sidecars_are_never_overwritten(processing):
     processor, request, user, drive, speech, _ = processing
-    stem = drive.items["audio"]["name"][:-4]
+    stem = drive.items["audio"]["name"][:-5]
     drive.add("manual", stem + ".txt", "folder", b"My personal notes.")
     with pytest.raises(IntelligenceError, match="output_conflict"):
         await processor.handle(user, request)
@@ -135,7 +133,7 @@ async def test_no_queue_duplicate_status_and_cancellation_cleanup(processing):
     with pytest.raises(asyncio.CancelledError):
         await work
     assert processor.running is None and not drive.writes
-    assert not list(Path.cwd().glob(".recording-*.wav"))
+    assert not list(Path.cwd().glob(".recording-*.opus"))
 
 
 async def test_deadline_cancels_speech_and_releases_slot(processing):
@@ -167,10 +165,10 @@ async def test_actual_hash_is_authoritative_when_graph_hash_missing(processing):
 
 
 @pytest.mark.parametrize("content", [
-    b"not a wave", wav_bytes(rate=8000), wav_bytes(channels=2), wav_bytes(width=1),
-    wav_bytes()[:-1], wav_bytes() + b"unexpected", b"RIFF" + struct.pack("<I", 4) + b"WAVE",
+    b"not opus", opus_bytes(rate=8000), opus_bytes(channels=2), opus_bytes(width=1),
+    opus_bytes()[:-1], opus_bytes() + b"unexpected", b"OggS\0",
 ])
-async def test_bad_wave_is_not_sent_to_speech(processing, content):
+async def test_bad_opus_is_not_sent_to_speech(processing, content):
     processor, request, user, drive, speech, _ = processing
     drive.add("audio", drive.items["audio"]["name"], "folder", content)
     request = replace(request, source_sha1=hashlib.sha1(content).hexdigest(), source_size=len(content))
@@ -179,23 +177,23 @@ async def test_bad_wave_is_not_sent_to_speech(processing, content):
     assert not speech.calls and not drive.writes
 
 
-def test_duration_uses_actual_data_chunk_and_size_limit():
-    data = wav_bytes()
-    assert MAX_WAV_BYTES < 58 * 1024 * 1024
-    # Validate a sparse project-local WAV without constructing 57.6 MB in RAM.
-    path = Path(__file__).resolve().parent / ".duration-test.wav"
+async def test_wav_source_is_rejected_after_clean_break(processing):
+    processor, request, user, drive, speech, _ = processing
+    drive.items["audio"]["name"] = "AudioRecording_20260907_220536.wav"
+    with pytest.raises(IntelligenceError, match="unsupported_audio"):
+        await processor.handle(user, request)
+    assert not speech.calls and not drive.writes
+
+
+def test_duration_uses_ogg_granules_and_size_limit():
+    assert MAX_OPUS_BYTES < 58 * 1024 * 1024
+    path = Path(__file__).resolve().parent / ".duration-test.opus"
     try:
         with path.open("w+b") as file:
-            size = 1800 * 32000 + 2
-            header = bytearray(data[:44])
-            struct.pack_into("<I", header, 4, size + 36)
-            struct.pack_into("<I", header, 40, size)
-            file.write(header)
-            file.seek(size + 43)
-            file.write(b"\0")
+            file.write(opus_bytes(frames=1800 * 16000 + 320))
             file.flush()
             with pytest.raises(IntelligenceError, match="recording_too_long"):
-                validate_wav(file)
+                validate_opus(file)
     finally:
         path.unlink(missing_ok=True)
 
@@ -203,7 +201,7 @@ def test_duration_uses_actual_data_chunk_and_size_limit():
 @pytest.mark.parametrize("changes,code", [
     ({"v": True}, "invalid_request"), ({"v": 2}, "invalid_request"),
     ({"user_id": "injected"}, "invalid_request"), ({"source_size": True}, "invalid_request"),
-    ({"source_size": MAX_WAV_BYTES + 1}, "recording_too_long"),
+    ({"source_size": MAX_OPUS_BYTES + 1}, "recording_too_long"),
     ({"source_sha1": "A" * 40}, "invalid_request"),
     ({"recorded_at": "2026-09-07"}, "invalid_request"),
     ({"recorded_at": "2026-99-07T12:00:00Z"}, "invalid_request"),

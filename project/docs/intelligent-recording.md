@@ -6,23 +6,25 @@ read-only voice retrieval. It does not change `recorder.voice.v1`, the
 
 ## Filenames and time
 
-New recordings use `AudioRecording_YYYYMMDD_HHMMSS.wav` in the configured
+New recordings use `AudioRecording_YYYYMMDD_HHMMSS.opus` in the configured
 timezone, initially UTC+08:00. Same-second collisions get `_001`, `_002`, etc.
-An unsynchronized clock produces `AudioRecording_UNTIMED_<id>.wav`; recording
-does not depend on network availability. Existing `rec-*.wav` files remain
-usable. Timestamp provenance is local recording metadata, not a timestamp
+An unsynchronized clock produces `AudioRecording_UNTIMED_<id>.opus`; recording
+does not depend on network availability. WAV is a deliberate clean break:
+existing WAV files remain untouched but are not cataloged, played, synchronized,
+or converted. Timestamp provenance is local recording metadata, not a timestamp
 invented at upload time.
 
 ## Upload and processing
 
-The ESP uploads the WAV directly to OneDrive as before, then records a
+The ESP uploads the Ogg Opus file directly to OneDrive, then records a
 nonsecret processing notification on SD. Every upload-success path, including
 reconciliation with an already uploaded file, follows this path.
 
 Processing uses separate API-B-authenticated endpoints documented in
 [`recording-processing-v1.md`](../protocols/recording-processing-v1.md).
 The proxy checks the caller, source item, allowed folder, content fingerprint,
-WAV format and duration before submitting audio to Fast Transcription.
+Ogg Opus structure, CRC, profile, size, and duration before submitting
+`audio/ogg; codecs=opus` to Fast Transcription.
 Graph access tokens are not accepted as API-B authentication.
 
 The backend processes one recording in the connected request. There is no
@@ -46,23 +48,23 @@ allow 45 seconds on the ESP, above the backend's 30-second status budget.
 
 Processing may be incomplete even when upload succeeded. Uncertain results
 are reconciled through status, not by blindly starting transcription again
-or uploading the same WAV. The display distinguishes processing, checking
-the result and pending work from a failed WAV upload.
+or uploading the same recording. The display distinguishes processing, checking
+the result and pending work from a failed recording upload.
 
-Deleting a previously uploaded WAV in OneDrive does not cause it to be
+Deleting a previously uploaded Opus recording in OneDrive does not cause it to be
 reuploaded. For pending transcription, Sync confirms the exact item's absence
 directly with Graph before recording a durable deleted-remote skip. Subsequent
-Sync operations leave it skipped and keep the local WAV. A proxy-folder,
+Sync operations leave it skipped and keep the local copy. A proxy-folder,
 permission or network failure alone cannot create that skip.
 
-Automatic transcription is limited to 30 minutes of PCM16 mono 16 kHz audio.
+Automatic transcription is limited to 30 minutes of 16 kHz mono Ogg Opus.
 Longer recordings still upload and play normally. The legacy HTTP budget is
 not a guarantee that every 30-minute recording completes before ingress timeout.
 Do not retry an uncertain operation using a new source identity.
 
 ## Outputs
 
-For `AudioRecording_20260907_220536.wav`, the backend writes:
+For `AudioRecording_20260907_220536.opus`, the backend writes:
 
 ```text
 AudioRecording_20260907_220536.txt
@@ -75,7 +77,7 @@ metadata. An explicit valid no-speech result is allowed; transport or
 authentication errors are not converted to empty transcripts.
 
 Completion means both sidecars are confirmed. A conflicting/manual file is
-not silently overwritten. The WAV is never modified or deleted. A crash
+not silently overwritten. The Opus source is never modified or deleted. A crash
 before results are durably written can require another Speech invocation;
 exactly-once transcription billing is not promised.
 

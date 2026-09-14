@@ -29,8 +29,8 @@ static bool date_valid(const char *name)
 bool recording_name_valid(const char *name, bool partial)
 {
     if (!name) return false;
-    size_t n = strlen(name), ext = partial ? 5 : 4;
-    if (n > 64 || n <= ext || strcmp(name + n - ext, partial ? ".part" : ".wav"))
+    size_t n = strlen(name), ext = partial ? 5 : 5;
+    if (n > 64 || n <= ext || strcmp(name + n - ext, partial ? ".part" : ".opus"))
         return false;
     size_t stem = n - ext;
     if (!strncmp(name, "rec-", 4)) {
@@ -79,7 +79,7 @@ bool recording_name_format(char *out, size_t capacity, const recording_time_t *s
                  (unsigned long long)random_id);
     }
     if (collision) snprintf(suffix, sizeof(suffix), "_%03u", collision);
-    int n = snprintf(out, capacity, "%s%s.wav", stem, suffix);
+    int n = snprintf(out, capacity, "%s%s.opus", stem, suffix);
     return n > 0 && (size_t)n < capacity;
 }
 bool recording_timestamp(const recording_time_t *stamp, char out[36])

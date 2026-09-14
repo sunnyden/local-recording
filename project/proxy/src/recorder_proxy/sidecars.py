@@ -70,7 +70,7 @@ def json_bytes(operation, request, source, phrases, text_item, text):
 
 
 async def reconcile(graph, request, source, operation):
-    parent, stem = source["parentReference"]["id"], source["name"][:-4]
+    parent, stem = source["parentReference"]["id"], source["name"][:-5]
     names = (stem + ".transcription.json", stem + ".txt")
     if any(len(name) > 255 for name in names):
         raise conflict()

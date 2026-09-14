@@ -268,25 +268,26 @@ authenticated sockets waiting for their initial request. Keep one worker and one
 this is not a cross-replica lock.
 
 The server verifies Graph size/hash metadata, downloads to a private random
-project-working-directory WAV, hashes the actual content, and parses the RIFF
-chunks. Only PCM16, mono, 16 kHz WAV with actual duration at most 1800 seconds
-is accepted; maximum file size is 57,665,536 bytes including a bounded header
-allowance. File reads/writes and WAV parsing use bounded background thread
+project-working-directory `.opus` file, hashes the actual content, and validates
+the Ogg pages, CRCs, sequence, Opus headers, 20 ms packets, and exact granules.
+Only mono Ogg Opus with a 16 kHz original input rate and actual duration at most
+1800 seconds is accepted; maximum file size is 16 MiB. File reads/writes and
+container parsing use bounded background thread
 operations, not the voice event loop. Speech requests are asynchronous.
 The HTTP processing budget is 180 seconds, including Graph and output writes.
-Timeout/disconnect/cancellation cancels the operation and removes its WAV.
+Timeout/disconnect/cancellation cancels the operation and removes its spool file.
 The container runs in a private writable `/app/data` directory; hard container
 termination relies on ephemeral container-storage disposal. No token or
 transcript is written to the local spool.
 
-Outputs beside the input WAV:
+Outputs beside the input Opus recording:
 
 * `<stem>.txt`: readable timestamped multilingual phrases, source/operation
   identity, and a content checksum. Silence explicitly says “No speech recognized.”
 * `<stem>.transcription.json`: completion marker, source SHA1/ETag, pipeline
   metadata, phrase offsets/locales, readable text, and the TXT ID/checksum.
 
-The WAV is never modified. Uploads are create-only with conflict-fail
+The Opus source is never modified. Uploads are create-only with conflict-fail
 semantics. TXT is written first and JSON **last**; both are read back and source
 ETag is checked before returning completion. An interrupted TXT-only write is
 recoverable on retry without retranscribing or replacing the TXT. Modified,
@@ -298,7 +299,7 @@ Success is HTTP 200 with `v`, `status` (`completed` or `already_completed`),
 `operation_id`, `json_item_id`, and `text_item_id`, never transcript text.
 The operation ID is 64 hexadecimal characters and returned sidecar IDs are
 bounded to 128 characters for the device response buffers.
-Status never invokes Speech or downloads the WAV; it reconciles bounded remote
+Status never invokes Speech or downloads the recording; it reconciles bounded remote
 sidecars after restart and returns `not_started`, `processing`,
 `already_completed`, or `retry_required`. Errors use
 `{"v":1,"error":{"code":"...","retryable":false}}` and the stable codes in the
@@ -325,7 +326,7 @@ HTTP and streams share the same single processing slot; `started` identifies
 the request, not admission to a queue or proof that Speech has started.
 Duplicates and contention still return `processing_in_progress` and `busy`.
 
-Optional `completed_bytes`/`total_bytes` describe only actual WAV transfer:
+Optional `completed_bytes`/`total_bytes` describe only actual recording transfer:
 downloaded bytes in `downloading`, and audio-file bytes handed to the Speech
 HTTP upload in `transcribing` (excluding multipart framing). They are **not**
 Speech progress or confirmed upstream receipt. Fast Transcription's response
@@ -346,13 +347,13 @@ Continuing downloads may exceed the old HTTP operation budget.
 The validated API-B token's expiry is enforced throughout the socket,
 including initial-request wait. Obtain a fresh API-B token before opening it.
 `{"v":1,"type":"cancel"}`, disconnect, expiry, and application shutdown cancel
-and await all request-owned work and remove the private WAV. Explicit cancel
+and await all request-owned work and remove the private spool file. Explicit cancel
 closes normally without claiming completion. There is no detached task, queue,
 worker, HTTP 202, token persistence, or change to voice session limits.
 If final delivery is lost after durable sidecar writes, query HTTP status:
 its backend budget remains 30 seconds, so allow 45 seconds on the client.
 Retain the device receipt until reconciliation; never infer failure of the
-already successful WAV upload from an interrupted processing connection.
+already successful recording upload from an interrupted processing connection.
 
 ### Server-only voice tools
 

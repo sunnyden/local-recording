@@ -3,3 +3,4 @@ dependencies:
   espressif/network_provisioning: "1.2.4"
   espressif/esp_websocket_client: "1.8.0"
   espressif/cjson: "1.7.19~2"
+  esphome/micro-opus: "0.4.1"

@@ -4,6 +4,13 @@ param(
     [string]$Profile = "default"
 )
 $ErrorActionPreference = "Stop"
+if (!(Get-Command patch -ErrorAction SilentlyContinue)) {
+    $gitPatch = Join-Path $env:ProgramFiles "Git\usr\bin\patch.exe"
+    if (!(Test-Path $gitPatch)) {
+        throw "micro-opus requires patch.exe; install Git for Windows or add patch to PATH"
+    }
+    $env:PATH = "$(Split-Path $gitPatch);$env:PATH"
+}
 . $ActivationScript
 $env:PYTHONUTF8 = "1"
 $python = Join-Path $env:IDF_PYTHON_ENV_PATH "Scripts\python.exe"

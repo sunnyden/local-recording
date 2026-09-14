@@ -88,7 +88,7 @@ coordinated rollback-safe local-only operation, not something this build runs.
 4. Flash through the discovered CH340 port only under parent coordination.
 5. Read startup telemetry: flash capacity, PSRAM total, internal free, largest DMA.
 6. Check keys and LCD orientation before starting audio; no card auto-format.
-7. Record an acoustic reference, inspect WAV rate/channels/duration and play it.
+7. Record an acoustic reference, inspect Ogg Opus rate/channels/duration and play it.
 8. Measure MCLK/BCLK/WS and full-duplex clock continuity during playback clear.
 9. Fault-test removal/full card and power-loss recovery using expendable test media.
 10. Only then enroll Wi-Fi/Microsoft and validate server VAD/AEC at safe volume.

@@ -1,10 +1,10 @@
 # ESP32-S3 recorder firmware
 
 ESP-IDF **6.1**, ATK_DNESP32S3_V1.4. Source and dependencies are built; the
-application has not been flashed or functionally validated on hardware. The
-firmware implementation agent performed build/host work without opening a
-serial port. Separately, the parent completed the ROM identification probe below.
-No flash writes, erase, eFuse writes, or real credential enrollment occurred.
+working recorder has been validated on the physical board using application-only
+flashes at the installed factory offset. The partition table, 24 KiB NVS,
+other data partitions and SD recordings must remain untouched. No eFuse writes
+or implicit credential resets are part of normal development.
 
 ### Parent ROM identification — 2026-09-07
 
@@ -86,7 +86,7 @@ python -m pip install --target .host-tools ziglang==0.14.1
 This is a test-only tool, not a firmware runtime dependency. Eleven host executables
 cover:
 
-* WAV encoding/parsing, odd-sample recovery, format rejection, checkpoint
+* Ogg Opus muxing/parsing, page-boundary recovery, format rejection, checkpoint
   corruption, voice headers/sequence/sample alignment, and 320 KiB range math.
 * The production identity and BLE control sources with synthetic token/storage/
   scheduler mocks: pending/slow-down/denial/expiry/cancellation, separate audiences,
@@ -123,6 +123,19 @@ Run `.\tools\test-intelligence.ps1` for timestamp naming, actual filesystem
 recovery/outbox, and cloud Sync/processing/UI integration tests. See
 [timestamped recording and processing](docs/recording-processing.md) for the
 new timezone option, protocol, durable receipts, and hardware acceptance gates.
+
+Run `.\tools\test-gui-status.ps1` and `.\tools\test-gui.ps1` for the optional
+lightweight 320-by-240 GUI. The GUI is enabled only by the separate
+`sdkconfig.gui.defaults` overlay; default/safe builds retain the text renderer.
+It uses generated RGB565/alpha assets and bitmap Latin fonts rather than LVGL,
+a framebuffer, or a runtime SVG/font engine. See
+[`components/gui/README.md`](components/gui/README.md) for profiles, resource
+limits and rendering behavior.
+
+`sdkconfig.gui-test.defaults` additionally enables a local, whitelisted serial
+UI test bridge. Never ship that profile. Camera-assisted bench validation is
+documented in [`docs/gui-board-validation.md`](docs/gui-board-validation.md).
+Normal GUI firmware has no serial test commands.
 
 ## Safety gates
 
@@ -170,17 +183,22 @@ IDs and tokens, not the real registrations.
 
 KEY3 up, KEY1 down, KEY0 select, KEY2 back. Modes are mutually exclusive.
 Record and playback also accept KEY0 to stop. Setup, Sync, and AI stop on KEY2.
-The LCD uses 26-character lines, a small original uppercase font, and one
-10 KiB internal-DMA stripe; no framebuffer is allocated.
+The safe/default LCD path uses 26-character lines and a small original uppercase
+font. The optional GUI uses the same 10 KiB internal-DMA allocation for bounded
+eight-row strips, generated mixed-case bitmap fonts and selected supplied icons;
+neither path allocates a framebuffer.
 
-* **Record:** signed PCM16, 16 kHz mono WAV. Stereo I2S ADC slots are reduced to
-  the left microphone slot. A 96-frame PSRAM queue is approximately 60 KiB.
-  Overrun, short read/write, queue overflow, and storage errors stop recording.
-* **Recordings:** bounded-memory directory traversal and WAV chunk parser.
+* **Record:** 16 kHz mono Ogg Opus, 20 ms frames, constrained VBR at 24 kbit/s,
+  `OPUS_APPLICATION_AUDIO`, complexity 2. The fixed-point micro-opus codec uses
+  Xtensa optimizations, the 240 MHz CPU profile, and PSRAM-backed state/workspace.
+  Stereo I2S ADC slots are
+  reduced to the left microphone slot. A 96-frame PSRAM queue is approximately
+  60 KiB. Overrun, codec, queue, and storage errors stop recording.
+* **Recordings:** bounded-memory directory traversal and Ogg Opus parser.
   Unsupported formats are rejected, not played at a wrong rate.
 * **Sync:** explicit, direct Microsoft Graph requests; root `local-recording`
   folder; conflict-fail upload sessions; 320 KiB ranges streamed through 4 KiB.
-  Graph bearer tokens never accompany signed upload PUTs. Local WAVs remain.
+  Graph bearer tokens never accompany signed upload PUTs. Local Opus files remain.
 * **AI:** API-B bearer WSS, `recorder.voice.v1`, exact 24-byte ERV1 header and
   16 kHz PCM. Simultaneous raw microphone capture and playback; no local AEC,
   VAD, resampling, or provider-specific protocol. The proxy owns those choices.
@@ -219,22 +237,24 @@ Authorized/denied/expired/error responses do not include the user code.
 
 ## Recovery and limits
 
-Recording names use `AudioRecording_YYYYMMDD_HHMMSS.wav` at capture start with
+Recording names use `AudioRecording_YYYYMMDD_HHMMSS.opus` at capture start with
 the configured UTC offset (initially +08:00), adding `_001` etc. for collisions.
-Without a valid clock, names use `AudioRecording_UNTIMED_<random-id>.wav`.
-A small durable `.meta` preserves capture UTC/offset/clock validity; old
-`rec-*.wav` names remain accepted. Active recordings are `.part`; finalized
-files are `.wav`. Every second, PCM is flushed/fsynced
-before an alternating, checksummed 16-byte checkpoint is fsynced in `.ckp`.
+Without a valid clock, names use `AudioRecording_UNTIMED_<random-id>.opus`.
+A small durable `.meta` preserves capture UTC/offset/clock validity. Active
+recordings are `.part`; finalized files are `.opus`. WAV files are intentionally
+not cataloged, played, synchronized, or converted. Approximately every second,
+a complete CRC-protected Ogg page is flushed/fsynced before an alternating,
+checksummed 24-byte checkpoint is fsynced in `.ckp`.
 At boot only canonical recorder `.part` files with valid checkpoints are
-repaired, truncated to the last committed complete sample, and renamed.
+repaired at the last committed complete Ogg page, marked EOS, and renamed.
 This can lose approximately one second after power loss. Damaged/missing
 checkpoints leave the `.part` file intact and increment the failure count.
 The card is never formatted or recordings automatically deleted. FAT itself is
 not power-fail atomic; an offline filesystem check may still be necessary.
 
-Maximum data length is `0x7fff0000`, below signed 32-bit seek limits; stop rather
-than cross RIFF/FAT/stdio limits. Catalog memory does not scale with file count.
+Files are bounded to 16 MiB and automatic transcription to 30 minutes. At the
+24 kbit/s target, a 30-minute recording is about 5.4 MB plus small Ogg overhead.
+Catalog memory does not scale with file count.
 
 Uploads keep signed session URLs only in RAM. Restart starts a new session
 unless the remote final item can be reconciled. Per-recording durable, nonsecret

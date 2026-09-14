@@ -117,7 +117,7 @@ static esp_err_t hash_file(FILE *file, char hex[41], uint32_t *size)
 {
     if (fseek(file, 0, SEEK_END)) return ESP_FAIL;
     long length = ftell(file);
-    if (length < 44 || (uint64_t)length > WAV_MAX_DATA + 44ULL || fseek(file, 0, SEEK_SET))
+    if (length < 1 || (uint64_t)length > OPUS_MAX_FILE_BYTES || fseek(file, 0, SEEK_SET))
         return ESP_ERR_INVALID_SIZE;
     *size = length;
     psa_hash_operation_t hash = PSA_HASH_OPERATION_INIT;
@@ -183,7 +183,7 @@ static processing_result_t confirm_remote_missing(processing_job_t *job)
         job->state = PROCESS_PENDING;
         return PROCESS_STORAGE_ERROR;
     }
-    ESP_LOGW("sync", "Remote WAV deleted; skipping future processing, local copy retained");
+    ESP_LOGW("sync", "Remote Opus recording deleted; skipping future processing, local copy retained");
     return PROCESS_OK;
 }
 static void process_job(processing_job_t *job)
@@ -202,14 +202,15 @@ static void process_job(processing_job_t *job)
         atomic_fetch_add(&pending_count, 1);
         atomic_store(&processing_error, result);
         cloud_sync_phase(SYNC_UPLOADED_PENDING);
-        ESP_LOGW("sync", "WAV uploaded; processing pending: %s", cloud_sync_result_name(result));
+        ESP_LOGW("sync", "Opus recording uploaded; processing pending: %s",
+                 cloud_sync_result_name(result));
     }
 }
 static esp_err_t uploaded(const char *name, const char *drive, const char *hash,
-                          uint32_t size, uint32_t pcm_bytes, cJSON *item)
+                          uint32_t size, uint32_t pcm_samples, cJSON *item)
 {
     processing_job_t job = {.source_size = size,
-        .state = pcm_bytes > PCM_RATE * 2u * 1800u ? PROCESS_TOO_LONG : PROCESS_PENDING};
+        .state = pcm_samples > OPUS_MAX_SAMPLES ? PROCESS_TOO_LONG : PROCESS_PENDING};
     const char *id = get_string(item, "id");
     if (!id || !*id || strlen(id) >= sizeof(job.item_id)) return ESP_ERR_INVALID_RESPONSE;
     strcpy(job.name, name); strcpy(job.drive_id, drive);
@@ -237,8 +238,10 @@ static esp_err_t sync_one(const char *name, const char *drive)
     snprintf(path, sizeof(path), RECORDING_DIR "/%s", name);
     FILE *file = fopen(path, "rb");
     if (!file) return ESP_FAIL;
-    wav_info_t wave;
-    if (!wav_parse(file, &wave)) { fclose(file); return ESP_ERR_NOT_SUPPORTED; }
+    ogg_opus_info_t opus;
+    if (!ogg_opus_parse(file, 0, true, &opus)) {
+        fclose(file); return ESP_ERR_NOT_SUPPORTED;
+    }
     uint32_t size = 0;
     esp_err_t err = hash_file(file, hash, &size);
     if (err != ESP_OK) { fclose(file); return err; }
@@ -249,7 +252,7 @@ static esp_err_t sync_one(const char *name, const char *drive)
         if (strcmp(existing.drive_id, drive) || strcmp(existing.source_sha1, hash) ||
             existing.source_size != size) return ESP_ERR_INVALID_STATE;
         cloud_sync_progress(size, size);
-        return ESP_OK; /* Already drained from durable outbox this Sync, no WAV reupload. */
+        return ESP_OK; /* Already drained from durable outbox this Sync; do not reupload. */
     }
     if (err != ESP_ERR_NOT_FOUND) { fclose(file); return err; }
     cloud_sync_phase(SYNC_UPLOADING);
@@ -259,7 +262,8 @@ static esp_err_t sync_one(const char *name, const char *drive)
     err = graph_request("recording lookup", url, HTTP_METHOD_GET, NULL, &status, &json);
     if (err == ESP_OK && status == 200) {
         bool match = matching_item(json, name, size, hash);
-        err = match ? uploaded(name, drive, hash, size, wave.bytes, json) : ESP_ERR_INVALID_STATE;
+        err = match ? uploaded(name, drive, hash, size, opus.samples, json) :
+            ESP_ERR_INVALID_STATE;
         cJSON_Delete(json); fclose(file);
         return err;
     }
@@ -291,7 +295,7 @@ static esp_err_t sync_one(const char *name, const char *drive)
         err = graph_request("completed recording verification", url, HTTP_METHOD_GET, NULL, &status, &json);
         complete = err == ESP_OK && status == 200 && matching_item(json, name, size, hash);
     }
-    if (complete) err = uploaded(name, drive, hash, size, wave.bytes, json);
+    if (complete)     err = uploaded(name, drive, hash, size, opus.samples, json);
     cJSON_Delete(json);
     if (!complete) return err == ESP_OK ? ESP_ERR_INVALID_RESPONSE : err;
     return err;

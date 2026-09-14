@@ -17,7 +17,7 @@ STREAM_READ_TIMEOUT_SECONDS = 15 * 60
 
 
 async def disk(function, *args):
-    # Do not close/unlink the WAV while an in-flight filesystem operation uses it.
+    # Do not close/unlink the recording while an in-flight filesystem operation uses it.
     task = asyncio.create_task(asyncio.to_thread(function, *args))
     return await finish_task(task)
 
@@ -31,7 +31,7 @@ class AudioMultipart(httpx.AsyncByteStream):
             f"--{self.boundary}\r\nContent-Disposition: form-data; name=\"definition\"\r\n"
             'Content-Type: application/json\r\n\r\n{"locales":[]}\r\n'
             f"--{self.boundary}\r\nContent-Disposition: form-data; name=\"audio\"; "
-            'filename="recording.wav"\r\nContent-Type: audio/wav\r\n\r\n'
+            'filename="recording.opus"\r\nContent-Type: audio/ogg; codecs=opus\r\n\r\n'
         ).encode()
         self.suffix = f"\r\n--{self.boundary}--\r\n".encode()
         self.size = len(self.prefix) + size + len(self.suffix)

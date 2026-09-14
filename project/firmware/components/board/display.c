@@ -14,6 +14,9 @@
 static esp_lcd_panel_handle_t panel;
 static SemaphoreHandle_t done;
 static uint16_t *line;
+static bool pending, display_fault, display_ready;
+static TickType_t submitted;
+#define DISPLAY_BUFFER_PIXELS (320u * 16u)
 /* Original compact 5x7 uppercase glyphs, columns encoded top-to-bottom. */
 static const uint8_t letters[26][5] = {
  {126,9,9,9,126},{127,73,73,73,54},{62,65,65,65,34},{127,65,65,34,28},
@@ -52,14 +55,59 @@ static bool color_done(esp_lcd_panel_io_handle_t io,
     return wake == pdTRUE;
 }
 #endif
-bool board_display_available(void) { return panel != NULL; }
+bool board_display_available(void) { return display_ready; }
+bool board_display_faulted(void) { return display_fault; }
+esp_err_t board_display_hide(void)
+{
+    display_fault = true;
+    display_ready = false;
+    return board_expander_update(0x0400, 0);
+}
+esp_err_t board_display_poll(void)
+{
+    if (pending && xSemaphoreTake(done, 0) == pdTRUE) pending = false;
+    if (pending && (TickType_t)(xTaskGetTickCount() - submitted) > pdMS_TO_TICKS(1000))
+        display_fault = true;
+    if (display_fault && !pending && line) memset(line, 0, DISPLAY_BUFFER_PIXELS * 2);
+    if (display_fault) return ESP_ERR_TIMEOUT;
+    return pending ? ESP_ERR_INVALID_STATE : ESP_OK;
+}
+esp_err_t board_display_scrub(void)
+{
+    if (!line) return ESP_ERR_INVALID_STATE;
+    if (pending && xSemaphoreTake(done, 0) == pdTRUE) pending = false;
+    if (pending) return ESP_ERR_INVALID_STATE;
+    memset(line, 0, DISPLAY_BUFFER_PIXELS * 2);
+    return ESP_OK;
+}
+uint16_t *board_display_strip(void)
+{
+    return display_ready && board_display_poll() == ESP_OK ? line : NULL;
+}
+esp_err_t board_display_submit(unsigned x, unsigned y, unsigned width, unsigned height)
+{
+    if (!panel) return ESP_ERR_NOT_SUPPORTED;
+    if (!width || !height || x >= 320 || y >= 240 || width > 320 - x ||
+        height > 240 - y || width * height > 320 * 8) return ESP_ERR_INVALID_ARG;
+    esp_err_t err = board_display_poll();
+    if (err != ESP_OK) return err;
+    for (unsigned i = 0; i < width * height; ++i)
+        line[i] = (uint16_t)((line[i] << 8) | (line[i] >> 8));
+    pending = true;
+    submitted = xTaskGetTickCount();
+    err = esp_lcd_panel_draw_bitmap(panel, x, y, x + width, y + height, line);
+    /* A submission failure may occur after transport has taken ownership.
+       Quarantine this storage rather than guessing whether DMA started. */
+    if (err != ESP_OK) display_fault = true;
+    return err;
+}
 esp_err_t board_display_init(void)
 {
 #ifndef CONFIG_RECORDER_SPI_LCD_CONFIRMED
     return ESP_ERR_NOT_SUPPORTED;
 #else
     done = xSemaphoreCreateBinary();
-    line = heap_caps_malloc(320 * 16 * 2, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+    line = heap_caps_malloc(DISPLAY_BUFFER_PIXELS * 2, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
     if (!done || !line) return ESP_ERR_NO_MEM;
     esp_err_t err = board_expander_update(0x0c00, 0x0800);
     if (err != ESP_OK) return err;
@@ -84,6 +132,7 @@ esp_err_t board_display_init(void)
     for (unsigned row = 0; row < 15; ++row) {
         if ((err = board_display_line(row, "", false)) != ESP_OK) return err;
     }
+    display_ready = true;
     return ESP_OK;
 #endif
 }
@@ -91,6 +140,7 @@ esp_err_t board_display_line(unsigned row, const char *text, bool selected)
 {
     if (!panel) return ESP_ERR_NOT_SUPPORTED;
     if (row >= 15 || !text) return ESP_ERR_INVALID_ARG;
+    if (board_display_poll() != ESP_OK) return ESP_ERR_INVALID_STATE;
     size_t n = strnlen(text, 26);
     uint16_t bg = selected ? 0x001f : 0x0000;
     for (unsigned y = 0; y < 16; ++y) {
@@ -101,7 +151,14 @@ esp_err_t board_display_line(unsigned row, const char *text, bool selected)
             line[y * 320 + x] = (color << 8) | (color >> 8);
         }
     }
+    pending = true;
+    submitted = xTaskGetTickCount();
     esp_err_t err = esp_lcd_panel_draw_bitmap(panel, 0, row * 16, 320, row * 16 + 16, line);
-    if (err != ESP_OK) return err;
-    return xSemaphoreTake(done, pdMS_TO_TICKS(1000)) == pdTRUE ? ESP_OK : ESP_ERR_TIMEOUT;
+    if (err != ESP_OK) { display_fault = true; return err; }
+    if (xSemaphoreTake(done, pdMS_TO_TICKS(1000)) != pdTRUE) {
+        display_fault = true;
+        return ESP_ERR_TIMEOUT;
+    }
+    pending = false;
+    return ESP_OK;
 }

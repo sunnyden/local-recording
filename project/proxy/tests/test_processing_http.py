@@ -48,7 +48,7 @@ def api(settings, monkeypatch):
             "source_size": len(drive.content["audio"])}
     with TestClient(app) as client:
         yield client, body, key, claims, drive, service
-    assert not list(Path.cwd().glob(".recording-*.wav"))
+    assert not list(Path.cwd().glob(".recording-*.opus"))
 
 
 @pytest.mark.parametrize("redirect", [
@@ -73,7 +73,7 @@ def test_sync_process_and_status_contract(api, redirect):
 def test_processing_failure_logs_origin_without_user_data(api, caplog):
     client, body, key, claims, drive, service = api
     drive.items["audio"]["remoteItem"] = {}
-    drive.items["audio"]["name"] = "PRIVATE_RECORDING_NAME.wav"
+    drive.items["audio"]["name"] = "PRIVATE_RECORDING_NAME.opus"
     authorization = token(key, claims)
     response = client.post("/v1/recordings/status", json=body,
                            headers={"Authorization": authorization})

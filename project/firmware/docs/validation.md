@@ -15,8 +15,8 @@ entries below, but does not validate the new processing path on hardware.
 * `tools\test-intelligence.ps1` passes actual storage/name/checkpoint/outbox and
   actual cloud Sync/processing/UI host tests. It covers timestamp/offset/offline
   names, collision avoidance, old recovery journals, torn outbox updates,
-  all upload-success branches, multiple durable jobs, replay without WAV files,
-  status-first reconciliation, consent, cancellation, Retry-After and long-WAV
+  all upload-success branches, multiple durable jobs, replay without local Opus files,
+  status-first reconciliation, consent, cancellation, Retry-After and long-Opus
   skips. Network, scheduler and SHA-1-provider boundaries are synthetic.
 * Final isolated ESP-IDF 6.1 builds pass: safe image `0x16a720` bytes
   (1,484,576) and owner-approved PoC profile `0x175640` bytes (1,529,408).
@@ -269,5 +269,35 @@ matching build artifacts, with no NVS payload:
 The final actual-driver host regression accepts 50 initial software frames,
 rejects the next sample, grants no credit merely for DMA transfer, and grants
 capacity only after completion. Both local-only and
-existing-HMAC IDF builds and all eleven host executables pass. No serial or
-hardware action was performed by this firmware work.
+existing-HMAC IDF builds and all eleven host executables pass.
+
+### Ogg Opus target validation (2026-09-13)
+
+The user subsequently authorized app-only flashing and serial validation for
+the Ogg Opus migration. A read-only COM5 probe confirmed the installed factory
+partition at `0x10000`, size 3 MiB. The prior 3 MiB application was backed up
+outside the repository before writing only the new application image; read-back
+verification matched. Bootloader, partition table, NVS, FAT/SD, SPIFFS, and
+eFuses were not written.
+
+The final 240 MHz fixed-point production build is 1,724,048 bytes, leaving
+1,421,680 bytes in the installed app partition. The serial-validation variant
+was 1,725,504 bytes. `libesphome__micro-opus.a` contributes about 186 KiB to the
+linked image. A 30-minute capture sustained average/max encode
+times of 5.229/5.706 ms per 20 ms frame, queue peak 9/96, internal minimum free
+RAM 134,300 bytes, largest DMA block 94,208 bytes, and 212,640 bytes total PSRAM
+delta from pre-audio startup (about 151 KiB codec/container after subtracting
+the persistent 61,440-byte capture queue). No active-capture overruns occurred.
+
+The original shutdown sequence allowed one post-capture RX overflow while the
+EOS page was fsynced. RX now stops at the capture-task boundary. A subsequent
+59.9-second capture completed with zero overruns, queue peak 2/96,
+average/max encode times 5.254/5.704 ms, and a 186,951-byte file (about
+25.0 kbit/s including Ogg overhead). Full playback to EOF completed with zero
+overruns, average/max decode times 2.974/8.499 ms, internal minimum free RAM
+136,768 bytes, and largest DMA block 94,208 bytes.
+
+The proxy accepts a separately generated FFmpeg Ogg Opus reference and all
+firmware host, GUI/status, repository, and proxy tests pass. The board validation
+profile keeps credentials disabled, so live authenticated OneDrive/Azure
+transcription was not exercised on the device.

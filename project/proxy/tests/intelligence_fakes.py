@@ -1,20 +1,67 @@
 import hashlib
-import io
 import json
+import struct
 from types import SimpleNamespace
-import wave
 
 import httpx
 
 
-def wav_bytes(frames=160, rate=16000, channels=1, width=2):
-    file = io.BytesIO()
-    with wave.open(file, "wb") as wav:
-        wav.setnchannels(channels)
-        wav.setsampwidth(width)
-        wav.setframerate(rate)
-        wav.writeframes(bytes(frames * channels * width))
-    return file.getvalue()
+def _make_ogg_crc_table():
+    values = []
+    for byte in range(256):
+        crc = byte << 24
+        for _ in range(8):
+            crc = ((crc << 1) & 0xffffffff) ^ (0x04c11db7 if crc & 0x80000000 else 0)
+        values.append(crc)
+    return tuple(values)
+
+
+_OGG_CRC_TABLE = _make_ogg_crc_table()
+
+
+def _ogg_crc(data):
+    crc = 0
+    for byte in data:
+        crc = ((crc << 8) & 0xffffffff) ^ _OGG_CRC_TABLE[((crc >> 24) ^ byte) & 0xff]
+    return crc
+
+
+def _ogg_page(serial, sequence, flags, granule, packets):
+    lacing = bytearray()
+    body = b""
+    for packet in packets:
+        remaining = len(packet)
+        while remaining >= 255:
+            lacing.append(255)
+            remaining -= 255
+        lacing.append(remaining)
+        body += packet
+    header = bytearray(
+        b"OggS\0" + bytes([flags]) + struct.pack("<QII", granule, serial, sequence)
+        + b"\0\0\0\0" + bytes([len(lacing)]) + lacing
+    )
+    data = header + body
+    struct.pack_into("<I", data, 22, _ogg_crc(data))
+    return bytes(data)
+
+
+def opus_bytes(frames=320, rate=16000, channels=1, width=2):
+    serial, pre_skip = 0x12345678, 312
+    head = b"OpusHead" + bytes([1, channels]) + struct.pack("<HIhB", pre_skip, rate, 0, 0)
+    if width != 2:
+        head = head[:-1] + b"\1"
+    tags = b"OpusTags" + struct.pack("<I", 8) + b"recorder" + struct.pack("<I", 0)
+    packets = max(1, (frames + 319) // 320)
+    pages = [_ogg_page(serial, 0, 2, 0, [head]),
+             _ogg_page(serial, 1, 0, 0, [tags])]
+    encoded_packets = packets + 1
+    for start in range(0, encoded_packets, 50):
+        count = min(50, encoded_packets - start)
+        final = start + count == encoded_packets
+        granule = pre_skip + packets * 960 if final else (start + count) * 960
+        pages.append(_ogg_page(serial, len(pages), 4 if final else 0, granule,
+                               [b"\x48" + bytes(59)] * count))
+    return b"".join(pages)
 
 
 class Credential:
@@ -53,8 +100,8 @@ class Drive:
         self.paginated = False
         self.add("root", "root", None, folder=True)
         self.add("folder", "local-recording", "root", folder=True)
-        self.add("audio", "AudioRecording_20260907_220536.wav", "folder",
-                 wav_bytes() if content is None else content)
+        self.add("audio", "AudioRecording_20260907_220536.opus", "folder",
+                 opus_bytes() if content is None else content)
 
     def add(self, id, name, parent, content=b"", folder=False):
         item = {"id": id, "name": name, "eTag": f'"{id}-v1"', "size": len(content),
@@ -139,7 +186,8 @@ class SpeechService:
         assert request.headers["authorization"].startswith("Bearer managed-assertion-")
         body = await request.aread()
         assert b'name="definition"' in body and b'\r\n\r\n{"locales":[]}\r\n' in body
-        assert b'name="audio"' in body and b"RIFF" in body
+        assert b'name="audio"' in body and b"OggS" in body
+        assert b"Content-Type: audio/ogg; codecs=opus" in body
         assert b"audioUrl" not in body
         assert len(body) == int(request.headers["content-length"])
         if self.wait:
