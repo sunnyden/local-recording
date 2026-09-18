@@ -355,6 +355,21 @@ its backend budget remains 30 seconds, so allow 45 seconds on the client.
 Retain the device receipt until reconciliation; never infer failure of the
 already successful recording upload from an interrupted processing connection.
 
+### Rolling voice context
+
+`recorder.voice.v2` extends v1 with an optional, bounded Ogg Opus context upload
+before `ready`; v1 remains accepted. The proxy receives at most 256 KiB in
+strictly sequenced 4,096-byte WebSocket messages, verifies the declared SHA-256,
+and decodes at most 30 seconds to PCM16 mono 16 kHz entirely in memory.
+
+Voice Live is configured with semantic VAD and `create_response:false`. For
+nonempty context, the proxy creates one server-ID-assigned user message with one
+`input_audio` content part and requires the matching item-created confirmation.
+This avoids VAD consuming silence. It does not send `response.create`, and only then allows live
+device microphone input. Context bytes and
+PCM are request-owned, never written to disk or logged, and are released on
+success, cancellation, or failure.
+
 ### Server-only voice tools
 
 When enabled, the verified Voice Live session advertises only:

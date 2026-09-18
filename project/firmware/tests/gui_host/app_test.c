@@ -30,12 +30,23 @@ local_status_t local_status(void){return local;}
 sync_status_t cloud_sync_status(void){return sync_state;}
 voice_status_t voice_client_status(void){return voice;}
 esp_err_t local_record_start(void){++record_calls;local.mode=LOCAL_RECORD;return ESP_OK;}
+esp_err_t local_record_start_with_preroll(rolling_snapshot_t *snapshot)
+{assert(snapshot);++record_calls;local.mode=LOCAL_RECORD;memset(snapshot,0,sizeof(*snapshot));return ESP_OK;}
 esp_err_t local_play_start(const char *name){assert(name&&name[0]);++play_calls;local.mode=LOCAL_PLAY;return ESP_OK;}
 void local_stop(void){++stop_calls;}
 esp_err_t cloud_sync_start(void){++sync_calls;sync_state.active=true;return ESP_OK;}
 void cloud_sync_cancel(void){++cancel_calls;}
 esp_err_t voice_client_start(void){++voice_calls;voice.active=true;return ESP_OK;}
+esp_err_t voice_client_start_with_context(rolling_snapshot_t *snapshot)
+{assert(snapshot);memset(snapshot,0,sizeof(*snapshot));++voice_calls;voice.active=true;return ESP_OK;}
 void voice_client_stop(void){++voice_stops;}
+esp_err_t rolling_audio_set_enabled(bool enabled){(void)enabled;return ESP_OK;}
+esp_err_t rolling_audio_take(rolling_snapshot_t *snapshot)
+{memset(snapshot,0,sizeof(*snapshot));return ESP_OK;}
+void rolling_snapshot_release(rolling_snapshot_t *snapshot){memset(snapshot,0,sizeof(*snapshot));}
+rolling_status_t rolling_audio_status(void){return (rolling_status_t){0};}
+void lan_server_set_available(bool enabled){(void)enabled;}
+esp_err_t lan_server_pause(void){return ESP_OK;}
 bool recorder_setup_active(void){return setup_active;}
 esp_err_t recorder_setup_start(void){++setup_calls;setup_active=true;return ESP_OK;}
 void recorder_setup_stop(void){setup_active=false;setup_clear(NULL);}

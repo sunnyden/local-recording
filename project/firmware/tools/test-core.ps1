@@ -15,6 +15,22 @@ try {
     if ($LASTEXITCODE) { throw "Portable core compile failed ($LASTEXITCODE)" }
     & .\core-test.exe
     if ($LASTEXITCODE) { throw "Portable core tests failed ($LASTEXITCODE)" }
+    & $Compiler cc -std=c11 -Wall -Wextra -Werror -D_CRT_SECURE_NO_WARNINGS `
+        -I "$root\tests\host" -I "$root\components\rolling_audio\include" `
+        -I "$root\components\recorder\include" -I "$root\components\audio_io\include" `
+        -I "$root\components\recorder_core\include" `
+        "$root\tests\rolling_audio_test.c" "$root\components\recorder_core\ogg_opus.c" `
+        -o rolling-audio-test.exe
+    if ($LASTEXITCODE) { throw "Rolling audio compile failed ($LASTEXITCODE)" }
+    & .\rolling-audio-test.exe
+    if ($LASTEXITCODE) { throw "Rolling audio tests failed ($LASTEXITCODE)" }
+    & $Compiler cc -std=c11 -Wall -Wextra -Werror -D_CRT_SECURE_NO_WARNINGS `
+        -I "$root\tests\host" -I "$root\components\lan_server\include" `
+        -I "$root\components\recorder\include" -I "$root\components\recorder_core\include" `
+        "$root\tests\lan_server_test.c" -o lan-server-test.exe
+    if ($LASTEXITCODE) { throw "LAN server compile failed ($LASTEXITCODE)" }
+    & .\lan-server-test.exe
+    if ($LASTEXITCODE) { throw "LAN server tests failed ($LASTEXITCODE)" }
     $cjson = Join-Path $root "managed_components\espressif__cjson\cJSON"
     if (!(Test-Path "$cjson\cJSON.c")) { throw "Run the IDF build to resolve pinned cJSON before host integration tests" }
     & $Compiler cc -std=c11 -Wall -Wextra -Werror -D_CRT_SECURE_NO_WARNINGS -D_GNU_SOURCE `
@@ -51,6 +67,7 @@ try {
     if ($LASTEXITCODE) { throw "Host network tests failed ($LASTEXITCODE)" }
     & $Compiler cc -std=c11 -Wall -Wextra -Werror -D_CRT_SECURE_NO_WARNINGS -D_GNU_SOURCE -DRECORDER_HOST_TEST -Dcalloc=voice_test_calloc `
         -I "$root\tests\host" -I "$root\components\voice_client\include" `
+        -I "$root\components\rolling_audio\include" -I "$root\components\recorder\include" `
         -I "$root\components\audio_io\include" -I "$root\components\identity\include" `
         -I "$root\components\recorder_core\include" -I $cjson `
         "$root\tests\voice_client_test.c" "$root\components\voice_client\voice_client.c" `

@@ -11,7 +11,7 @@ from starlette.routing import Route, WebSocketRoute
 from .auth import AuthError, AuthUnavailable, TokenValidator
 from .config import Settings
 from .cleanup import cancel_tasks, finish_task
-from .protocol import SUBPROTOCOL
+from .protocol import SUBPROTOCOL, SUBPROTOCOL_V2
 from .providers import VoiceLive
 from .sessions import VoiceSession
 from .graph import GraphClient
@@ -86,7 +86,11 @@ def create_app(settings=None, *, validator=None, provider_factory=None,
         if not accepting:
             await deny(socket, 503)
             return
-        if socket.scope.get("query_string") or SUBPROTOCOL not in socket.scope.get("subprotocols", []):
+        offered = socket.scope.get("subprotocols", [])
+        subprotocol = SUBPROTOCOL_V2 if SUBPROTOCOL_V2 in offered else (
+            SUBPROTOCOL if SUBPROTOCOL in offered else None
+        )
+        if socket.scope.get("query_string") or subprotocol is None:
             await deny(socket, 400)
             return
         authorization = socket.headers.getlist("authorization")
@@ -107,12 +111,15 @@ def create_app(settings=None, *, validator=None, provider_factory=None,
         task = asyncio.current_task()
         active.add(task)  # No await between checking and acquiring the process-local slot.
         try:
-            await socket.accept(subprotocol=SUBPROTOCOL)
+            await socket.accept(subprotocol=subprotocol)
             provider = provider_factory(settings)
             tools = None
             if settings.onedrive_tools_enabled:
                 tools = ReadTools(graph_factory, UserContext(principal, authorization[0][7:]))
-            session = VoiceSession(socket, provider, settings, principal, tools=tools)
+            session = VoiceSession(
+                socket, provider, settings, principal, tools=tools,
+                protocol_version=2 if subprotocol == SUBPROTOCOL_V2 else 1,
+            )
             await session.run()
         finally:
             active.discard(task)

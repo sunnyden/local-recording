@@ -4,6 +4,7 @@ import binascii
 from dataclasses import dataclass
 import json
 import logging
+import re
 from typing import AsyncIterator, Protocol
 from urllib.parse import urlencode
 
@@ -47,7 +48,7 @@ class Event:
 class VoiceProvider(Protocol):
     sample_rate: int
 
-    async def open(self): ...
+    async def open(self, context_pcm: bytes | None = None): ...
     async def append(self, pcm: bytes): ...
     async def respond(self): ...
     def events(self) -> AsyncIterator[Event]: ...
@@ -55,7 +56,14 @@ class VoiceProvider(Protocol):
     async def close(self): ...
 
 
-def session_configuration(tools_enabled=False):
+def session_configuration(tools_enabled=False, *, vad_enabled=True, context_mode=False):
+    turn_detection = (
+        {"type": "azure_semantic_vad_multilingual",
+         "create_response": False, "interrupt_response": True}
+        if vad_enabled else None
+    )
+    if context_mode:
+        turn_detection["silence_duration_ms"] = 30000
     result = {
         "type": "session.update",
         "session": {
@@ -64,8 +72,7 @@ def session_configuration(tools_enabled=False):
             "input_audio_sampling_rate": 16000,
             "output_audio_format": "pcm16",
             "input_audio_echo_cancellation": {"type": "server_echo_cancellation"},
-            "turn_detection": {"type": "azure_semantic_vad_multilingual",
-                               "create_response": False, "interrupt_response": True},
+            "turn_detection": turn_detection,
             "tools": [],
             "tool_choice": "none",
         },
@@ -76,9 +83,12 @@ def session_configuration(tools_enabled=False):
     return result
 
 
-def verify_configuration(message, settings):
+def verify_configuration(message, settings, *, vad_enabled=True, context_mode=False):
     session = message.get("session", {})
-    requested = session_configuration(settings.onedrive_tools_enabled)["session"]
+    requested = session_configuration(
+        settings.onedrive_tools_enabled, vad_enabled=vad_enabled,
+        context_mode=context_mode,
+    )["session"]
     if not isinstance(session, dict):
         raise ProviderError()
     if settings.onedrive_tools_enabled and session.get("instructions") != TOOL_PROMPT:
@@ -93,10 +103,13 @@ def verify_configuration(message, settings):
             or type(echo.get("channels", 1)) is not int or echo.get("channels", 1) != 1):
         raise ProviderError()
     vad = session.get("turn_detection")
-    if not isinstance(vad, dict) or any(
-        type(vad.get(k)) is not type(v) or vad[k] != v
-        for k, v in requested["turn_detection"].items()
-    ):
+    if vad_enabled:
+        if not isinstance(vad, dict) or any(
+            type(vad.get(k)) is not type(v) or vad[k] != v
+            for k, v in requested["turn_detection"].items()
+        ):
+            raise ProviderError()
+    elif vad is not None:
         raise ProviderError()
     accepted_models = (settings.model,)
     if settings.profile == "native" and settings.model == "gpt-realtime-2":
@@ -220,6 +233,7 @@ class VoiceLive:
         self.tool_outputs_sent = 0
         self.tool_outputs_acknowledged = 0
         self.responses_sent = 0
+        self.open_phase = "idle"
 
     async def _send(self, data, *, dispatch=None):
         try:
@@ -249,18 +263,67 @@ class VoiceLive:
                 logger.warning("voice_tool_output_acknowledged count=%d",
                                self.tool_outputs_acknowledged)
             if data.get("type") == "error":
-                logger.warning("voice_upstream_error")
+                error = data.get("error")
+                code = error.get("code") if isinstance(error, dict) else None
+                parameter = error.get("param") if isinstance(error, dict) else None
+                if not isinstance(code, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", code):
+                    code = "unknown"
+                if (not isinstance(parameter, str)
+                        or not re.fullmatch(r"[A-Za-z0-9_.\[\]-]{1,120}", parameter)):
+                    parameter = "unknown"
+                logger.warning("voice_upstream_error phase=%s code=%s param=%s",
+                               self.open_phase, code, parameter)
         return data
 
-    async def open(self):
+    async def _configure(self, *, vad_enabled, context_mode=False):
+        self.open_phase = "configure_context_vad" if context_mode else (
+            "configure_vad_enabled" if vad_enabled else "configure_vad_disabled")
+        await self._send(session_configuration(
+            self.settings.onedrive_tools_enabled, vad_enabled=vad_enabled,
+            context_mode=context_mode,
+        ))
+        message = await self._receive()
+        if message.get("type") != "session.updated":
+            raise ProviderError()
+        verify_configuration(message, self.settings, vad_enabled=vad_enabled,
+                             context_mode=context_mode)
+
+    async def _seed_context(self, pcm):
+        self.open_phase = "create_context_item"
+        content = [{"type": "input_audio",
+                    "audio": base64.b64encode(pcm).decode("ascii")}]
+        await self._send({"type": "conversation.item.create",
+                          "item": {"type": "message", "role": "user",
+                                   "content": content}})
+        for _ in range(8):
+            message = await self._receive()
+            kind = message.get("type")
+            if kind == "conversation.item.created":
+                item = message.get("item")
+                if (not isinstance(item, dict) or item.get("type") != "message"
+                        or item.get("role") != "user"
+                        or not isinstance(item.get("id"), str)
+                        or not 1 <= len(item["id"]) <= 256):
+                    raise ProviderError()
+                return
+            elif kind in ("input_audio_buffer.speech_started",
+                          "input_audio_buffer.speech_stopped"):
+                continue
+            else:
+                raise ProviderError()
+        raise ProviderError()
+
+    async def open(self, context_pcm=None):
         query = {"api-version": API_VERSION, "model": self.settings.model}
         if self.settings.profile != "native":
             query["profile"] = self.settings.profile
         url = self.settings.endpoint.replace("https://", "wss://", 1)
         url += "/voice-live/realtime?" + urlencode(query)
         try:
-            async with asyncio.timeout(self.settings.handshake_seconds):
+            timeout = self.settings.handshake_seconds + (30 if context_pcm is not None else 0)
+            async with asyncio.timeout(timeout):
                 token = await self.credential.get_token("https://ai.azure.com/.default")
+                self.open_phase = "connect"
                 self.socket = await connect(
                     url, additional_headers={"Authorization": f"Bearer {token.token}"},
                     max_size=131072, max_queue=4, write_limit=32768,
@@ -270,11 +333,14 @@ class VoiceLive:
                 del token
                 if (await self._receive()).get("type") != "session.created":
                     raise ProviderError()
-                await self._send(session_configuration(self.settings.onedrive_tools_enabled))
-                message = await self._receive()
-                if message.get("type") != "session.updated":
-                    raise ProviderError()
-                verify_configuration(message, self.settings)
+                if context_pcm is None:
+                    await self._configure(vad_enabled=True)
+                else:
+                    await self._configure(vad_enabled=True)
+                    if context_pcm:
+                        if len(context_pcm) > 960000 or len(context_pcm) % 2:
+                            raise ProviderError()
+                        await self._seed_context(context_pcm)
                 if self.settings.onedrive_tools_enabled:
                     logger.warning("voice_tools_configuration_accepted tools=3 choice=auto")
         except (AzureError, WebSocketException, OSError, TimeoutError):
@@ -300,6 +366,7 @@ class VoiceLive:
                             yield tool_event({"type": "response.output_item.done",
                                               "response_id": response.get("id"), "item": item})
             event = map_event(data, self.settings.onedrive_tools_enabled)
+            del data
             if event:
                 yield event
 

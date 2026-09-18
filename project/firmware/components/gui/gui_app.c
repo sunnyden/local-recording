@@ -1,6 +1,8 @@
 #include "gui.h"
 #include "board.h"
 #include "recorder.h"
+#include "rolling_audio.h"
+#include "lan_server.h"
 #include "cloud_sync.h"
 #include "processing_outbox.h"
 #include "voice_client.h"
@@ -136,6 +138,7 @@ static bool busy(local_status_t l,sync_status_t s,voice_status_t v)
 static void key_route(board_key_t key,local_status_t l,sync_status_t s,voice_status_t v,int sd,int audio)
 {
     if(key==KEY_NONE)return;
+    if(lan_server_pause()!=ESP_OK){error_message(ESP_ERR_TIMEOUT);return;}
 #ifdef CONFIG_RECORDER_GUI_TEST_INPUT
     if(model.demo) {
         if(model.calibration&&key!=KEY_BACK)return;
@@ -175,17 +178,33 @@ static void key_route(board_key_t key,local_status_t l,sync_status_t s,voice_sta
     model.error=false;stop_requested=false;
     esp_err_t err=ESP_OK;
     if(model.screen==GUI_RECORDINGS) {
+        rolling_audio_set_enabled(false);
         if(model.count&&model.names[model.page_selected][0])
             err=local_play_start(model.names[model.page_selected]);
         else err=ESP_ERR_NOT_FOUND;
     } else if(model.screen==GUI_HOME) {
         model.note[0]=0;
         switch(model.selected) {
-        case 0:err=sd==ESP_OK&&audio==ESP_OK?local_record_start():ESP_ERR_INVALID_STATE;break;
+        case 0:
+            if(sd==ESP_OK&&audio==ESP_OK) {
+                rolling_snapshot_t snapshot;
+                err=rolling_audio_take(&snapshot);
+                if(err==ESP_OK)err=local_record_start_with_preroll(&snapshot);
+                else if(err==ESP_ERR_NO_MEM)err=local_record_start();
+                rolling_snapshot_release(&snapshot);
+            } else err=ESP_ERR_INVALID_STATE;
+            break;
         case 1:model.screen=GUI_RECORDINGS;catalog_index=0;catalog_load();break;
-        case 2:err=sd==ESP_OK?cloud_sync_start():ESP_ERR_INVALID_STATE;break;
-        case 3:err=audio==ESP_OK?voice_client_start():ESP_ERR_INVALID_STATE;break;
-        case 4:err=recorder_setup_start();break;
+        case 2:rolling_audio_set_enabled(false);err=sd==ESP_OK?cloud_sync_start():ESP_ERR_INVALID_STATE;break;
+        case 3:
+            if(audio==ESP_OK) {
+                rolling_snapshot_t snapshot;
+                err=rolling_audio_take(&snapshot);
+                if(err==ESP_OK)err=voice_client_start_with_context(&snapshot);
+                rolling_snapshot_release(&snapshot);
+            } else err=ESP_ERR_INVALID_STATE;
+            break;
+        case 4:rolling_audio_set_enabled(false);err=recorder_setup_start();break;
         }
     } else {model.screen=GUI_HOME;full();}
     if(err!=ESP_OK)error_message(err);
@@ -205,6 +224,9 @@ static void update(local_status_t l,sync_status_t s,voice_status_t v,int64_t now
     gui_model_t before=model;
     model.online=recorder_network_ready();model.time_ok=recorder_time_valid();
     bool was_active=model.active;
+    rolling_status_t rolling=rolling_audio_status();
+    model.rolling_active=rolling.active;
+    model.rolling_seconds=rolling.samples/PCM_RATE;
     uint32_t old_generation=model.generation;
     model.pressure=heap_caps_get_free_size(MALLOC_CAP_INTERNAL)<48000||
         l.overruns>0||l.queue_peak>8;
@@ -245,6 +267,7 @@ static void update(local_status_t l,sync_status_t s,voice_status_t v,int64_t now
         else if(l.mode==LOCAL_PLAY)model.screen=GUI_PLAYBACK;
         model.active=true;model.generation=l.generation;
         model.seconds=l.samples/PCM_RATE;model.total_seconds=l.total_samples/PCM_RATE;
+        model.pre_roll_seconds=l.pre_roll_samples/PCM_RATE;
         model.progress=l.total_samples?(unsigned)((uint64_t)l.samples*100/l.total_samples):0;
         if(model.progress>100)model.progress=100;
         model.level=old_generation==l.generation&&l.mode==LOCAL_RECORD&&!stop_requested?l.activity_level:0;
@@ -316,16 +339,23 @@ static board_key_t console_key(local_status_t l,sync_status_t s,voice_status_t v
     switch(event.kind) {
     case UI_INPUT_PING:gui_console_reply("pong");break;
     case UI_INPUT_STATUS:
-        printf("UI_TEST {\"v\":1,\"event\":\"status\",\"screen\":\"%s\",\"mode\":%u,\"selected\":%u,\"demo\":%s,\"sensitive_setup\":%s,\"heap_free\":%u,\"heap_min\":%u,\"dma_largest\":%u,\"overruns\":%lu,\"display_fault\":%s,\"gui_ram_bytes\":%u,\"asset_bytes\":%u,\"font_bytes\":%u,\"display_dma_bytes\":10240}\n",
+        {
+        rolling_status_t rolling=rolling_audio_status();
+        printf("UI_TEST {\"v\":1,\"event\":\"status\",\"screen\":\"%s\",\"mode\":%u,\"error\":%d,\"selected\":%u,\"demo\":%s,\"sensitive_setup\":%s,\"samples\":%lu,\"total_samples\":%lu,\"pre_roll_samples\":%lu,\"rolling_active\":%s,\"rolling_samples\":%lu,\"rolling_bytes\":%lu,\"rolling_error\":%d,\"heap_free\":%u,\"heap_min\":%u,\"dma_largest\":%u,\"overruns\":%lu,\"display_fault\":%s,\"gui_ram_bytes\":%u,\"asset_bytes\":%u,\"font_bytes\":%u,\"display_dma_bytes\":10240}\n",
             model.calibration?"calibration":gui_screen_name(model.screen),
-            (unsigned)l.mode,model.selected,model.demo?"true":"false",
-            sensitive_panel||(secret.active&&!model.demo)?"true":"false",heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+            (unsigned)l.mode,(int)l.error,model.selected,model.demo?"true":"false",
+            sensitive_panel||(secret.active&&!model.demo)?"true":"false",
+            (unsigned long)l.samples,(unsigned long)l.total_samples,
+            (unsigned long)l.pre_roll_samples,rolling.active?"true":"false",
+            (unsigned long)rolling.samples,(unsigned long)rolling.bytes,
+            (int)rolling.error,heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
             heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
             heap_caps_get_largest_free_block(MALLOC_CAP_DMA),(unsigned long)l.overruns,display_error?"true":"false",
             (unsigned)(sizeof(model)+sizeof(secret)+sizeof(dirty)+sizeof(setup_deadline)+sizeof(catalog_index)+
                 sizeof(display_error)+sizeof(setup_cancel)+sizeof(stop_requested)+sizeof(sensitive_panel)+
                 sizeof(scrub_pending)+gui_console_storage_bytes()),
             (unsigned)gui_assets_bytes(),(unsigned)gui_fonts_bytes());
+        }
         break;
     case UI_INPUT_DEMO:
         if(busy(l,s,v)||sensitive_panel||(secret.active&&!model.demo))gui_console_reply("error");
@@ -356,6 +386,12 @@ void gui_app_run(int sd,int audio,unsigned repaired,unsigned failed)
         local_status_t l=local_status();
         sync_status_t s=cloud_sync_status();
         voice_status_t v=voice_client_status();
+        bool rolling_should_run=model.screen==GUI_HOME&&l.mode==LOCAL_IDLE&&
+            !s.active&&!v.active&&!recorder_setup_active()&&!model.demo&&
+            !display_error&&!model.error;
+        rolling_audio_set_enabled(rolling_should_run);
+        lan_server_set_available(rolling_should_run&&sd==ESP_OK&&
+                                 recorder_network_ready());
 #ifdef CONFIG_RECORDER_GUI_TEST_INPUT
         board_key_t injected=console_key(l,s,v);
         if(key==KEY_NONE)key=injected;

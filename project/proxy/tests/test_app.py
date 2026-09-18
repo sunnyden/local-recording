@@ -52,6 +52,28 @@ def test_health_and_authenticated_session(deployment):
         socket.send_json({"v": 1, "type": "stop"})
 
 
+def test_v2_is_negotiated_without_changing_v1(deployment):
+    client, key, claims, providers = deployment
+    hello = {
+        **HELLO, "v": 2,
+        "context": {
+            "format": "ogg_opus", "length": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        },
+    }
+    with connect(
+        client, token(key, claims),
+        protocols=["recorder.voice.v1", "recorder.voice.v2"],
+    ) as socket:
+        assert socket.accepted_subprotocol == "recorder.voice.v2"
+        socket.send_json(hello)
+        assert socket.receive_json() == {"v": 2, "type": "state", "state": "connecting"}
+        assert socket.receive_json()["v"] == 2
+        assert socket.receive_json() == {"v": 2, "type": "state", "state": "listening"}
+        assert providers[0].context_pcm == b""
+        socket.send_json({"v": 2, "type": "stop"})
+
+
 @pytest.mark.parametrize("problem", ["missing", "graph", "id", "wrong_client", "expired", "query", "subprotocol"])
 def test_denied_before_upstream(deployment, problem):
     client, key, claims, providers = deployment

@@ -2,6 +2,7 @@ import asyncio
 from collections import deque
 from contextlib import suppress
 from dataclasses import dataclass, field
+import hashlib
 import logging
 import time
 from uuid import uuid4
@@ -10,7 +11,8 @@ import anyio
 from starlette.websockets import WebSocketDisconnect
 
 from .audio import AudioError, OutputAudio
-from .protocol import Frame, ProtocolError, Sequence, control, parse_control
+from .context import ContextError, decode_context
+from .protocol import ContextChunk, Frame, ProtocolError, Sequence, control, parse_control
 from .providers import ProviderError, ResponseNotDispatched
 from .voice_tools import VoiceTools
 
@@ -47,6 +49,34 @@ class TimedQueue:
         return born, value
 
 
+class PlaybackPacer:
+    def __init__(self, rate=32000, burst_samples=640):
+        self.rate = rate
+        self.burst_samples = burst_samples
+        self.tokens = 0.0
+        self.updated_at = None
+
+    def reset(self, now):
+        self.tokens = 0.0
+        self.updated_at = now
+
+    def delay(self, now, samples):
+        if not 0 < samples <= self.burst_samples:
+            raise ValueError("Invalid pacing request")
+        if self.updated_at is None:
+            self.reset(now)
+        elapsed = max(0.0, now - self.updated_at)
+        self.tokens = min(self.burst_samples, self.tokens + elapsed * self.rate)
+        self.updated_at = now
+        if self.tokens >= samples:
+            self.tokens -= samples
+            return 0.0
+        delay = (samples - self.tokens) / self.rate
+        self.tokens = 0.0
+        self.updated_at = now + delay
+        return delay
+
+
 @dataclass
 class AudioSegment:
     item_id: str
@@ -54,6 +84,7 @@ class AudioSegment:
     start: int | None = None
     end: int | None = None
     confirmed_done: bool = False
+    audio: OutputAudio | None = None
     pending: deque[bytes] = field(default_factory=deque)
 
 
@@ -61,9 +92,6 @@ class AudioSegment:
 class Playback:
     epoch: int
     response_id: str
-    audio: OutputAudio | None = None
-    audio_item_id: str = ""
-    audio_content_index: int = 0
     segments: list[AudioSegment] = field(default_factory=list)
     segment_cursor: int = 0
     generation_done: bool = False
@@ -78,12 +106,12 @@ class Playback:
     clear_sent: bool = False
     acknowledged: bool = False
     clear_deadline: float = 0
-    next_send_at: float = 0
+    pacer: PlaybackPacer = field(default_factory=PlaybackPacer)
     last_progress: float = field(default_factory=time.monotonic)
 
 
 class VoiceSession:
-    def __init__(self, socket, provider, settings, principal, *, tools=None):
+    def __init__(self, socket, provider, settings, principal, *, tools=None, protocol_version=1):
         self.socket, self.provider = socket, provider
         self.settings, self.principal = settings, principal
         self.id = str(uuid4())
@@ -104,7 +132,9 @@ class VoiceSession:
         self.discard_responses = {}
         self.progress_changed = asyncio.Event()
         self.audio_changed = asyncio.Event()
-        self.pending_audio_bytes = 0
+        self.output_capacity_changed = asyncio.Event()
+        self.queued_output_bytes = 0
+        self.max_queued_output_bytes = self.settings.max_unplayed_samples * 2
         self.started_at = time.monotonic()
         self.ready = False
         self.tasks = []
@@ -112,9 +142,10 @@ class VoiceSession:
         self.terminal_stop_sent = False
         self.transport_close_completed = False
         self.tools = VoiceTools(tools, provider, self._tool_continue) if tools else None
+        self.protocol_version = protocol_version
 
     async def emit(self, kind, **fields):
-        await self.outbound.put(control(kind, **fields))
+        await self.outbound.put(control(kind, version=self.protocol_version, **fields))
 
     async def _receive(self):
         message = await self.socket.receive()
@@ -123,13 +154,45 @@ class VoiceSession:
         return message
 
     async def handshake(self):
-        async with asyncio.timeout(self.settings.handshake_seconds):
+        timeout = self.settings.handshake_seconds + (30 if self.protocol_version == 2 else 0)
+        async with asyncio.timeout(timeout):
             first = await self._receive()
-            if first.get("text") is None or parse_control(first["text"])["type"] != "hello":
+            if first.get("text") is None:
                 raise ProtocolError("Expected hello first")
-            await self.socket.send_json(control("state", state="connecting"))
+            hello = parse_control(first["text"], self.protocol_version)
+            if hello["type"] != "hello":
+                raise ProtocolError("Expected hello first")
+            encoded_context = bytearray()
+            if self.protocol_version == 2:
+                metadata = hello["context"]
+                sequence = offset = 0
+                while len(encoded_context) < metadata["length"]:
+                    message = await self._receive()
+                    if message.get("bytes") is None:
+                        raise ProtocolError("Expected context chunk")
+                    chunk = ContextChunk.parse(message["bytes"])
+                    if chunk.sequence != sequence or chunk.offset != offset:
+                        raise ProtocolError("Context sequence or offset mismatch")
+                    if len(encoded_context) + len(chunk.data) > metadata["length"]:
+                        raise ProtocolError("Context exceeds declared length")
+                    encoded_context.extend(chunk.data)
+                    sequence += 1
+                    offset += len(chunk.data)
+                if hashlib.sha256(encoded_context).hexdigest() != metadata["sha256"]:
+                    raise ProtocolError("Context digest mismatch")
+                try:
+                    context_pcm = decode_context(bytes(encoded_context))
+                except ContextError:
+                    raise ProtocolError("Invalid audio context") from None
+            else:
+                context_pcm = b""
+            await self.socket.send_json(control(
+                "state", version=self.protocol_version, state="connecting",
+            ))
             # Race connection setup with expiry/disconnect; no audio is accepted before ready.
-            opening = asyncio.create_task(self.provider.open())
+            opening = asyncio.create_task(
+                self.provider.open(context_pcm) if self.protocol_version == 2 else self.provider.open()
+            )
             incoming = asyncio.create_task(self._receive())
             try:
                 remaining = self.principal.expires_at - time.time()
@@ -141,7 +204,8 @@ class VoiceSession:
                 )
                 if incoming in done:
                     message = incoming.result()
-                    if message.get("text") is not None and parse_control(message["text"])["type"] == "stop":
+                    if (message.get("text") is not None
+                            and parse_control(message["text"], self.protocol_version)["type"] == "stop"):
                         raise Stopped()
                     raise ProtocolError("Audio/control before ready")
                 if opening not in done:
@@ -156,10 +220,12 @@ class VoiceSession:
                     await asyncio.gather(opening, incoming, return_exceptions=True)
             if time.time() >= self.principal.expires_at:
                 raise SessionError("token_expired")
-            await self.socket.send_json(control("ready", session_id=self.id,
+            await self.socket.send_json(control("ready", version=self.protocol_version, session_id=self.id,
                                                 max_session_seconds=self.settings.max_session_seconds))
             self.ready = True
-            await self.socket.send_json(control("state", state="listening"))
+            await self.socket.send_json(control(
+                "state", version=self.protocol_version, state="listening",
+            ))
 
     async def device_reader(self):
         while True:
@@ -171,7 +237,7 @@ class VoiceSession:
                 continue
             if message.get("text") is None:
                 raise ProtocolError("Expected audio or control")
-            data = parse_control(message["text"])
+            data = parse_control(message["text"], self.protocol_version)
             if data["type"] == "stop":
                 raise Stopped()
             if data["type"] == "hello":
@@ -283,23 +349,30 @@ class VoiceSession:
         self.streams[stream.epoch] = stream
         return stream
 
-    async def _emit_audio(self, stream, pcm, final=False):
-        for packet in stream.audio.feed(pcm, final=final):
+    async def _queue_audio_packet(self, stream, segment, packet):
+        while self.queued_output_bytes + len(packet) > self.max_queued_output_bytes:
             if stream.cleared:
-                return
-            frame = Frame(2, stream.epoch, stream.sequence, stream.produced, packet)
-            stream.sequence += 1
-            stream.produced += len(packet) // 2
-            await self.outbound.put(frame)
+                return False
+            self.output_capacity_changed.clear()
+            if self.queued_output_bytes + len(packet) <= self.max_queued_output_bytes:
+                continue
+            await self.output_capacity_changed.wait()
+        if stream.cleared:
+            return False
+        segment.pending.append(packet)
+        self.queued_output_bytes += len(packet)
+        self.audio_changed.set()
+        return True
 
-    async def _finish_active_item(self, stream):
-        if stream.audio is None:
-            return
-        await self._emit_audio(stream, b"", final=True)
-        segment = stream.segments[stream.segment_cursor]
-        segment.end = stream.produced
-        stream.audio = None
-        stream.audio_item_id = ""
+    async def _convert_audio(self, stream, segment, pcm=b"", final=False):
+        packets = segment.audio.feed(pcm, final=final)
+        try:
+            for packet in packets:
+                if not await self._queue_audio_packet(stream, segment, packet):
+                    return False
+        finally:
+            packets.clear()
+        return True
 
     async def _audio(self, stream, event):
         if stream.generation_done:
@@ -312,22 +385,29 @@ class VoiceSession:
         if segment is None:
             if len(stream.segments) >= 128:
                 raise SessionError("provider_item_limit")
-            segment = AudioSegment(event.item_id, event.content_index)
+            segment = AudioSegment(
+                event.item_id, event.content_index,
+                audio=OutputAudio(self.provider.sample_rate),
+            )
             stream.segments.append(segment)
         if segment.confirmed_done:
             raise ProviderError()
         if event.type == "audio_done":
+            if not await self._convert_audio(stream, segment, final=True):
+                return
             segment.confirmed_done = True
+            segment.audio = None
         else:
-            if self.pending_audio_bytes + len(event.pcm) > 2 * 1024 * 1024:
-                raise SessionError("provider_audio_limit", True)
-            segment.pending.append(event.pcm)
-            self.pending_audio_bytes += len(event.pcm)
+            await self._convert_audio(stream, segment, event.pcm)
         self.audio_changed.set()
 
     async def _finish_response_audio(self, stream):
         stream.generation_done = True
         for segment in stream.segments:
+            if segment.audio is not None:
+                if not await self._convert_audio(stream, segment, final=True):
+                    return
+                segment.audio = None
             segment.confirmed_done = True
         self.audio_changed.set()
 
@@ -349,18 +429,26 @@ class VoiceSession:
                     await self.emit("state", state="speaking")
                 while stream.segment_cursor < len(stream.segments) and not stream.cleared:
                     segment = stream.segments[stream.segment_cursor]
-                    if stream.audio is None:
+                    if segment.start is None:
                         segment.start = stream.produced
-                        stream.audio = OutputAudio(self.provider.sample_rate)
-                        stream.audio_item_id = segment.item_id
-                        stream.audio_content_index = segment.content_index
                     while segment.pending and not stream.cleared:
-                        chunk = segment.pending.popleft()
-                        self.pending_audio_bytes -= len(chunk)
-                        await self._emit_audio(stream, chunk)
+                        packet = segment.pending.popleft()
+                        samples = len(packet) // 2
+                        split = self.settings.startup_prefill_samples - stream.produced
+                        parts = (
+                            (packet[:split * 2], packet[split * 2:])
+                            if 0 < split < samples else (packet,)
+                        )
+                        for part in parts:
+                            frame = Frame(
+                                2, stream.epoch, stream.sequence, stream.produced, part,
+                            )
+                            stream.sequence += 1
+                            stream.produced += len(part) // 2
+                            await self.outbound.put(frame)
                     if stream.cleared or not segment.confirmed_done:
                         break
-                    await self._finish_active_item(stream)
+                    segment.end = stream.produced
                     stream.segment_cursor += 1
                 if (not stream.cleared and stream.generation_done and
                         stream.segment_cursor == len(stream.segments)):
@@ -381,8 +469,9 @@ class VoiceSession:
             self.discard_responses.setdefault(stream.response_id, None)
             stream.cleared = True
             for segment in stream.segments:
-                self.pending_audio_bytes -= sum(map(len, segment.pending))
+                self.queued_output_bytes -= sum(map(len, segment.pending))
                 segment.pending.clear()
+                segment.audio = None
             if stream.started:
                 clearing.append(stream.epoch)
             else:
@@ -391,6 +480,7 @@ class VoiceSession:
                 stream.acknowledged = True
         self.progress_changed.set()
         self.audio_changed.set()
+        self.output_capacity_changed.set()
         for epoch in clearing:
             # Writer discards obsolete queued audio. It alone sends clear, preserving wire order.
             await self.emit("playback.clear", epoch=epoch)
@@ -456,6 +546,8 @@ class VoiceSession:
         raise ProviderError()
 
     async def _send_frame(self, born, frame):
+        self.queued_output_bytes -= len(frame.pcm)
+        self.output_capacity_changed.set()
         stream = self.streams.get(frame.epoch)
         if not stream or stream.cleared:
             return
@@ -472,25 +564,21 @@ class VoiceSession:
                 raise SessionError("playback_credit_timeout", True) from None
             if stream.cleared:
                 return
-        # Fill the board's complete bounded credit before real-time pacing.
-        # This covers its four-period DMA priming latency and network jitter.
-        now = time.monotonic()
-        if stream.sent < self.settings.startup_prefill_samples:
-            send_at = now
-        else:
-            send_at = max(stream.next_send_at, now - 0.04)
-            if send_at > now:
-                await asyncio.sleep(send_at - now)
-            send_at = max(send_at, time.monotonic() - 0.04)
+        prefill = self.settings.startup_prefill_samples
+        if stream.sent >= prefill:
+            delay = stream.pacer.delay(time.monotonic(), len(frame.pcm) // 2)
+            if delay:
+                await asyncio.sleep(delay)
         if stream.cleared:
             return
         if time.monotonic() - born > self.settings.output_queue_age_seconds:
             raise SessionError("queue_expired", True)
-        stream.next_send_at = send_at + len(frame.pcm) / 32000
         if stream.sent == stream.played:
             stream.last_progress = time.monotonic()
         stream.sent += len(frame.pcm) // 2
         await self.socket.send_bytes(frame.encode())
+        if stream.sent == prefill:
+            stream.pacer.reset(time.monotonic())
 
     async def device_writer(self):
         while True:
@@ -534,13 +622,15 @@ class VoiceSession:
         try:
             with suppress(WebSocketDisconnect, OSError, RuntimeError, TimeoutError):
                 async with asyncio.timeout(1):
-                    await self.socket.send_json(control("state", state="stopping"))
+                    await self.socket.send_json(control(
+                        "state", version=self.protocol_version, state="stopping",
+                    ))
                     if error:
                         await self.socket.send_json(control(
                             "error", code=error.code, message="Voice session stopped.",
-                            retryable=error.retryable,
+                            retryable=error.retryable, version=self.protocol_version,
                         ))
-                    await self.socket.send_json(control("stop"))
+                    await self.socket.send_json(control("stop", version=self.protocol_version))
                     self.terminal_stop_sent = True
         finally:
             # A failed terminal write must not skip closing an accepted transport.

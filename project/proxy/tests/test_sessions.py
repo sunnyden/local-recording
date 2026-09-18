@@ -1,17 +1,25 @@
 import asyncio
 from dataclasses import replace
 import json
+import hashlib
+from pathlib import Path
 import time
 
 import pytest
 
 from recorder_proxy.auth import Principal
-from recorder_proxy.protocol import Frame, ProtocolError, control
+from recorder_proxy.protocol import ContextChunk, Frame, ProtocolError, control
 from recorder_proxy.providers import Event, ProviderError
-from recorder_proxy.sessions import SessionError, TimedQueue, VoiceSession
+from recorder_proxy.sessions import PlaybackPacer, SessionError, TimedQueue, VoiceSession
 
 
 HELLO = control("hello", sample_rate=16000, channels=1, format="pcm16", frame_samples=320)
+CONTEXT = Path(__file__).parent.joinpath("fixtures", "context-16k.ogg").read_bytes()
+HELLO2 = control(
+    "hello", version=2, sample_rate=16000, channels=1, format="pcm16", frame_samples=320,
+    context={"format": "ogg_opus", "length": len(CONTEXT),
+             "sha256": hashlib.sha256(CONTEXT).hexdigest()},
+)
 
 
 class FakeSocket:
@@ -64,8 +72,10 @@ class FakeProvider:
         self.response_requests = asyncio.Queue()
         self.open_error = False
         self.append_block = None
+        self.context_pcm = None
 
-    async def open(self):
+    async def open(self, context_pcm=None):
+        self.context_pcm = context_pcm
         self.opened.set()
         await self.accepted.wait()
         if self.open_error:
@@ -122,6 +132,70 @@ async def test_ready_only_after_configuration(settings, principal):
     provider.accepted.set()
     await socket.until("ready")
     await stop(socket, provider, session, task)
+
+
+async def test_v2_context_is_complete_and_decoded_before_provider_open(settings, principal):
+    socket, provider = FakeSocket(), FakeProvider()
+    session = VoiceSession(socket, provider, settings, principal, protocol_version=2)
+    await socket.send(HELLO2)
+    await socket.send(ContextChunk(0, 0, CONTEXT[:311]).encode())
+    await socket.send(ContextChunk(1, 311, CONTEXT[311:]).encode())
+    task = asyncio.create_task(session.run())
+    ready = await socket.until("ready")
+    assert ready["v"] == 2
+    assert provider.context_pcm == bytes(64000)
+    await stop(socket, provider, session, task)
+
+
+@pytest.mark.parametrize("chunks", [
+    [ContextChunk(1, 0, CONTEXT)],
+    [ContextChunk(0, 1, CONTEXT)],
+    [ContextChunk(0, 0, CONTEXT), ContextChunk(1, len(CONTEXT), b"x")],
+])
+async def test_v2_context_chunk_attacks_abort_before_provider(settings, principal, chunks):
+    hello = dict(HELLO2)
+    if len(chunks) > 1:
+        hello["context"] = {**hello["context"], "length": len(CONTEXT) + 1}
+    socket, provider = FakeSocket(), FakeProvider()
+    await socket.send(hello)
+    for chunk in chunks:
+        await socket.send(chunk.encode())
+    await VoiceSession(
+        socket, provider, settings, principal, protocol_version=2,
+    ).run()
+    assert not provider.opened.is_set()
+    assert (await socket.until("error"))["code"] == "protocol_error"
+
+
+async def test_v2_bad_digest_aborts_before_decode_or_provider(settings, principal):
+    socket, provider = FakeSocket(), FakeProvider()
+    await socket.send({**HELLO2, "context": {**HELLO2["context"], "sha256": "0" * 64}})
+    await socket.send(ContextChunk(0, 0, CONTEXT).encode())
+    await VoiceSession(socket, provider, settings, principal, protocol_version=2).run()
+    assert not provider.opened.is_set()
+    assert (await socket.until("error"))["v"] == 2
+
+
+async def test_v2_context_receive_timeout_is_visible_and_closes(settings, principal):
+    settings = replace(settings, handshake_seconds=0.02)
+    socket, provider = FakeSocket(), FakeProvider()
+    await socket.send(HELLO2)
+    session = VoiceSession(socket, provider, settings, principal, protocol_version=2)
+    await session.run()
+    assert (await socket.until("error"))["code"] == "timeout"
+    assert socket.closed and provider.closed and not provider.opened.is_set()
+
+
+async def test_v2_cancellation_while_receiving_context_cleans_up(settings, principal):
+    socket, provider = FakeSocket(), FakeProvider()
+    await socket.send(HELLO2)
+    session = VoiceSession(socket, provider, settings, principal, protocol_version=2)
+    task = asyncio.create_task(session.run())
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert socket.closed and provider.closed and not provider.opened.is_set()
 
 
 async def test_full_duplex_and_progress_truncation(settings, principal):
@@ -444,21 +518,64 @@ async def test_repeated_deltas_and_delayed_done_preserve_audio(
                                    np.frombuffer(expected, dtype="<i2"), atol=2, rtol=0)
         assert len(session.streams[1].segments) == 12
         assert all(segment.confirmed_done for segment in session.streams[1].segments)
+        assert all(segment.audio is None for segment in session.streams[1].segments)
         assert not task.done()
     finally:
         await stop(socket, provider, session, task)
 
 
-async def test_future_item_buffer_limit_is_explicit(settings, principal):
-    session = VoiceSession(FakeSocket(), FakeProvider(), settings, principal)
-    stream = await session._stream(Event("audio", "r1", "i0"))
-    for _ in range(32):
-        await session._audio(stream, Event("audio", "r1", "i1", 0, bytes(65536)))
-    assert session.pending_audio_bytes == 2 * 1024 * 1024
-    with pytest.raises(SessionError) as failure:
-        await session._audio(stream, Event("audio", "r1", "i1", 0, bytes(2)))
-    assert failure.value.code == "provider_audio_limit"
-    assert session.pending_audio_bytes == 2 * 1024 * 1024
+def test_pacer_enforces_2x_realtime_over_100ms():
+    pacer = PlaybackPacer()
+    pacer.reset(0.0)
+    now = 0.0
+    sent_at = []
+    for _ in range(10):
+        now += pacer.delay(now, 320)
+        sent_at.append(now)
+    assert sent_at == pytest.approx([index / 100 for index in range(1, 11)])
+    assert sent_at[-1] == pytest.approx(0.1)
+
+
+def test_pacer_discards_delayed_credit_after_two_frames():
+    pacer = PlaybackPacer()
+    pacer.reset(0.0)
+    assert pacer.delay(10.0, 320) == 0
+    assert pacer.delay(10.0, 320) == 0
+    assert pacer.delay(10.0, 320) == pytest.approx(0.01)
+
+
+def test_pacer_reset_removes_accumulated_credit():
+    pacer = PlaybackPacer()
+    pacer.reset(0.0)
+    assert pacer.delay(1.0, 320) == 0
+    pacer.reset(1.0)
+    assert pacer.delay(1.0, 320) == pytest.approx(0.01)
+
+
+async def test_one_second_output_budget_blocks_current_delta(settings, principal):
+    provider = FakeProvider()
+    session = VoiceSession(FakeSocket(), provider, settings, principal)
+    session.response_requested = True
+    await provider.messages.put(Event("response_started", "r1"))
+    await provider.messages.put(Event("audio", "r1", "i0", 0, bytes(65536)))
+    await provider.messages.put(Event("input_committed"))
+    reading = asyncio.create_task(session.provider_reader())
+    async with asyncio.timeout(1):
+        while session.queued_output_bytes < 32000:
+            await asyncio.sleep(0)
+    stream = session.streams[1]
+    assert session.queued_output_bytes == session.max_queued_output_bytes == 32000
+    assert sum(map(len, stream.segments[0].pending)) == 32000
+    assert not reading.done()
+    assert provider.messages.qsize() == 1
+    assert not session.response_pending
+    await session.interrupt()
+    assert session.queued_output_bytes == 0
+    async with asyncio.timeout(1):
+        while not session.response_pending:
+            await asyncio.sleep(0)
+    reading.cancel()
+    await asyncio.gather(reading, return_exceptions=True)
 
 
 async def test_audio_after_confirmed_item_done_is_rejected(settings, principal):
@@ -551,6 +668,27 @@ async def test_output_prefills_credit_then_paces(settings, principal):
         if not task.done():
             task.cancel()
         await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_prefill_boundary_is_exact_across_short_items(settings, principal):
+    socket, provider, session, task = await start(settings, principal)
+    try:
+        await provider.messages.put(Event("input_committed"))
+        await provider.messages.put(Event("response_started", "r1"))
+        await provider.messages.put(Event("audio", "r1", "short", 0, bytes(200)))
+        await provider.messages.put(Event("audio_done", "r1", "short"))
+        await provider.messages.put(Event("audio", "r1", "long", 0, bytes(640 * 26)))
+        await provider.messages.put(Event("response_done", "r1"))
+        frames = []
+        while not frames or frames[-1].position < settings.startup_prefill_samples:
+            frames.append(await socket.until("audio"))
+        ends = [frame.position + len(frame.pcm) // 2 for frame in frames]
+        assert settings.startup_prefill_samples in ends
+        boundary = ends.index(settings.startup_prefill_samples)
+        assert frames[boundary + 1].position == settings.startup_prefill_samples
+        assert sum(len(frame.pcm) // 2 for frame in frames[:boundary + 1]) == 8000
+    finally:
+        await stop(socket, provider, session, task)
 
 
 async def test_clear_during_pacing_discards_waiting_packet(settings, principal):

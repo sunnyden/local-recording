@@ -26,7 +26,7 @@ int main(void)
     session.microphone = xQueueCreate(50, PCM_BYTES);
     audio_running = true;
     atomic_store(&ready, true);
-    deliver_control(&session, "{\"v\":1,\"type\":\"playback.start\",\"epoch\":1}");
+    deliver_control(&session, "{\"v\":2,\"type\":\"playback.start\",\"epoch\":1}");
     int16_t pcm[PCM_SAMPLES] = {123, INT16_MIN};
     int16_t before[PCM_SAMPLES];
     memcpy(before, pcm, sizeof(pcm));
@@ -54,9 +54,9 @@ int main(void)
     clock_us = 650000;
     assert(!voice_client_status().playback_active);
     played = 320; queued = 0;
-    deliver_control(&session, "{\"v\":1,\"type\":\"playback.clear\",\"epoch\":1}");
+    deliver_control(&session, "{\"v\":2,\"type\":\"playback.clear\",\"epoch\":1}");
     assert(!voice_client_status().playback_active && !voice_client_status().speaker_level);
-    deliver_control(&session, "{\"v\":1,\"type\":\"playback.start\",\"epoch\":2}");
+    deliver_control(&session, "{\"v\":2,\"type\":\"playback.start\",\"epoch\":2}");
     assert(!voice_client_status().playback_active && !voice_client_status().speaker_level);
     session.used = VOICE_MAX_PACKET;
     assert(voice_encode(session.message, sizeof(session.message), &frame));
@@ -70,7 +70,7 @@ int main(void)
     clock_us += 250000;
     assert(!voice_client_status().microphone_level);
     assert(capture_once(&session) && voice_client_status().microphone_level);
-    deliver_control(&session, "{\"v\":1,\"type\":\"state\",\"state\":\"stopping\"}");
+    deliver_control(&session, "{\"v\":2,\"type\":\"state\",\"state\":\"stopping\"}");
     assert(!voice_client_status().microphone_level && !voice_client_status().playback_active);
     assert(!strcmp(voice_client_status().state, "STOPPING"));
     voice_client_stop();

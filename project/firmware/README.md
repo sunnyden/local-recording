@@ -194,6 +194,17 @@ neither path allocates a framebuffer.
   Stereo I2S ADC slots are
   reduced to the left microphone slot. A 96-frame PSRAM queue is approximately
   60 KiB. Overrun, codec, queue, and storage errors stop recording.
+* **Rolling context:** Home/idle keeps at most 1,500 Opus packets / 30 seconds
+  in a fixed 240 KiB PSRAM byte ring. Playback, Sync, setup, AI, faults, and
+  completed recordings pause and clear it. Record prepends available history;
+  the elapsed timer remains time since the button press and shows pre-roll
+  separately. Rolling context never creates an SD file by itself.
+* **LAN reads:** `embedded-recorder.local` advertises a read-only HTTP service.
+  `GET /v1/recordings?offset=0&limit=20` lists validated Opus metadata and
+  returns `next_offset`; `GET /v1/recordings/<name>` streams a full file.
+  Wildcard CORS and no authentication are intentional trusted-LAN policy.
+  Range, HEAD, mutation, traversal, and encoded-path requests are rejected.
+  All routes return `503` outside healthy Home/idle before touching SD.
 * **Recordings:** bounded-memory directory traversal and Ogg Opus parser.
   Unsupported formats are rejected, not played at a wrong rate.
 * **Sync:** explicit, direct Microsoft Graph requests; root `local-recording`

@@ -7,6 +7,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && python -m pip install --no-cache-dir --upgrade pip==26.2.1 \
     && python -m pip install --no-cache-dir -r requirements.lock \
+    && python -c "import av; assert av.__version__ == '16.0.1'" \
     && python -m pip uninstall --yes pip setuptools
 COPY src ./src
 ENV PYTHONPATH=/app/src

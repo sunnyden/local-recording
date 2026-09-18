@@ -138,6 +138,10 @@ esp_err_t storage_append_padding(recording_file_t *file, const void *data, size_
     assert(file && data && bytes == 60 && samples == PCM_SAMPLES);
     return ESP_OK;
 }
+esp_err_t storage_append_history(recording_file_t *file, const void *data, size_t bytes,
+                                 uint32_t samples)
+{ return storage_append(file, data, bytes, samples); }
+esp_err_t storage_history_done(recording_file_t *file) { (void)file; return ESP_OK; }
 esp_err_t storage_finish(recording_file_t *file) { (void)file; return ESP_OK; }
 esp_err_t storage_abort(recording_file_t *file) { (void)file; ++aborts; return ESP_OK; }
 recording_encoder_t *recording_encoder_create(uint16_t *pre_skip)

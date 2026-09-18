@@ -66,10 +66,12 @@ frames for that epoch are discarded. A subsequent `playback.start` uses a new
 epoch and restarts sequence/sample position at zero.
 
 The v1 device hard budget is 16000 sent-but-unreported samples (one second).
-The proxy initially prefills 8000 samples (500 ms), then paces PCM at 16000
-samples/second with catch-up bursts no larger than 60 ms. The fixed 50-frame
-software ring can absorb a coalesced TCP delivery; combined software/DMA
-accounting still enforces the one-second hard bound.
+The proxy initially prefills exactly 8000 samples (500 ms) once per output
+epoch. It then uses a monotonic token bucket capped at 640 samples to send no
+faster than 32000 samples/second (2x real time). Thus a delayed pacing iteration
+can send at most two 320-sample frames and cannot accumulate a later catch-up
+burst. The fixed 50-frame software ring can absorb a coalesced TCP delivery;
+combined software/DMA accounting still enforces the one-second hard bound.
 Report progress at least every 100 ms and immediately after final playback
 drain. A normal next epoch starts only after the previous epoch's end and final
 played progress; an explicitly acknowledged clear is the interruption exception.
@@ -80,8 +82,12 @@ overreport queued data as heard. The clear acknowledgment is valid only after
 old software and DMA audio are invalidated. If TX clearing cannot preserve
 capture safely, stop the session rather than send a false acknowledgment.
 
-Bound queue capacity and queue age. Overflow or excessive delay cancels the
-response/session with an explicit error; never grow a queue without limit.
+The proxy retains at most 32000 bytes (one second) of converted, not-yet-sent
+PCM across item and transport queues, plus the single provider delta currently
+being converted and split. When that budget is full it stops advancing provider
+events, allowing bounded WebSocket and TCP backpressure to reach the provider.
+Audio remains FIFO; it never drops the oldest audio. Overflow or excessive
+delay cancels the response/session with an explicit error.
 Use WebSocket ping/pong for liveness. Both sides close resources on disconnect.
 
 ## Provider boundary and extension points

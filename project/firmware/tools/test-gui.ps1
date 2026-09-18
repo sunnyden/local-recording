@@ -24,7 +24,7 @@ try {
     & .\display-test.exe
     if ($LASTEXITCODE) { throw "LCD ownership tests failed" }
     $includes = @()
-    foreach ($component in @("recorder", "recorder_core", "cloud_sync", "voice_client", "provisioning", "network")) {
+    foreach ($component in @("recorder", "rolling_audio", "lan_server", "recorder_core", "cloud_sync", "voice_client", "provisioning", "network")) {
         $includes += @("-I", "$root\components\$component\include")
     }
     & $Compiler cc @includes @flags -I "$root\managed_components\espressif__cjson\cJSON" `

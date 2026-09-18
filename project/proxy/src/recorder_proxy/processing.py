@@ -125,8 +125,6 @@ def validate_opus(file):
                         or packet[16:] != b"\0\0\0"):
                     raise IntelligenceError("unsupported_audio", 415)
                 pre_skip = struct.unpack_from("<H", packet, 10)[0]
-                if not pre_skip:
-                    raise IntelligenceError("unsupported_audio", 415)
             elif packet_index == 1:
                 if sequence != 1 or cursor != len(body):
                     raise IntelligenceError("unsupported_audio", 415)

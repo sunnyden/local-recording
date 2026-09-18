@@ -77,7 +77,7 @@ static esp_err_t checkpoint(recording_file_t *r)
 }
 esp_err_t storage_begin(recording_file_t *r, uint16_t pre_skip)
 {
-    if (!r || !pre_skip) return ESP_ERR_INVALID_ARG;
+    if (!r) return ESP_ERR_INVALID_ARG;
     memset(r, 0, sizeof(*r));
     recording_time_t stamp = {.utc = time(NULL),
         .offset_minutes = CONFIG_RECORDER_TIMEZONE_OFFSET_MINUTES};
@@ -136,7 +136,7 @@ esp_err_t storage_begin(recording_file_t *r, uint16_t pre_skip)
     return ESP_ERR_INVALID_STATE;
 }
 static esp_err_t append_packet(recording_file_t *r, const void *packet, size_t bytes,
-                               uint32_t samples, bool output)
+                               uint32_t samples, bool output, bool commit)
 {
     if (!r || !r->file || !r->writer || !packet || !bytes || samples != PCM_SAMPLES)
         return ESP_ERR_INVALID_ARG;
@@ -147,20 +147,33 @@ static esp_err_t append_packet(recording_file_t *r, const void *packet, size_t b
     uint32_t previous_page = r->writer->last_page_offset;
     if (!ogg_opus_writer_packet(r->writer, packet, bytes, samples)) return ESP_FAIL;
     if (output) r->samples += samples;
-    if (r->writer->last_page_offset != previous_page &&
-        r->writer->last_page_offset != r->checkpoint_page)
+    if (commit && r->writer->last_page_offset != previous_page &&
+        r->writer->last_page_offset != r->checkpoint_page) {
         return checkpoint(r);
+    }
     return ESP_OK;
 }
 esp_err_t storage_append(recording_file_t *r, const void *packet, size_t bytes,
                          uint32_t samples)
 {
-    return append_packet(r, packet, bytes, samples, true);
+    return append_packet(r, packet, bytes, samples, true, true);
 }
 esp_err_t storage_append_padding(recording_file_t *r, const void *packet,
                                  size_t bytes, uint32_t samples)
 {
-    return append_packet(r, packet, bytes, samples, false);
+    return append_packet(r, packet, bytes, samples, false, true);
+}
+esp_err_t storage_append_history(recording_file_t *r, const void *packet,
+                                 size_t bytes, uint32_t samples)
+{
+    return append_packet(r, packet, bytes, samples, true, false);
+}
+esp_err_t storage_history_done(recording_file_t *r)
+{
+    if (!r || !r->writer)
+        return ESP_ERR_INVALID_STATE;
+    if (!r->writer->committed_granule) return ESP_OK;
+    return checkpoint(r);
 }
 esp_err_t storage_finish(recording_file_t *r)
 {
@@ -280,4 +293,96 @@ esp_err_t storage_catalog(size_t index, char *name, size_t capacity, size_t *cou
     }
     closedir(dir);
     return ESP_OK;
+}
+esp_err_t storage_open_recording(const char *name, FILE **file, recording_info_t *info)
+{
+    if (!storage_valid_name(name) || !file || !info) return ESP_ERR_INVALID_ARG;
+    *file = NULL;
+    memset(info, 0, sizeof(*info));
+    char path[128];
+    snprintf(path, sizeof(path), RECORDING_DIR "/%s", name);
+    FILE *opened = fopen(path, "rb");
+    if (!opened) return errno == ENOENT ? ESP_ERR_NOT_FOUND : ESP_FAIL;
+    ogg_opus_info_t opus;
+    if (!ogg_opus_parse(opened, 0, true, &opus) || fseek(opened, 0, SEEK_SET)) {
+        fclose(opened);
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    info->bytes = opus.bytes;
+    info->samples = opus.samples;
+    recording_time_t stamp;
+    esp_err_t time_err = storage_recording_time(name, &stamp);
+    if (time_err == ESP_OK) {
+        info->has_time = true;
+        info->time = stamp;
+    } else if (time_err != ESP_ERR_NOT_FOUND) {
+        fclose(opened);
+        return time_err;
+    }
+    *file = opened;
+    return ESP_OK;
+}
+esp_err_t storage_recording_info(const char *name, recording_info_t *info)
+{
+    FILE *file = NULL;
+    esp_err_t err = storage_open_recording(name, &file, info);
+    if (file && fclose(file) && err == ESP_OK) err = ESP_FAIL;
+    return err;
+}
+esp_err_t storage_catalog_info(size_t index, char *name, size_t capacity,
+                               recording_info_t *info, size_t *count)
+{
+    if (!name || !capacity || !info || !count) return ESP_ERR_INVALID_ARG;
+    DIR *dir = opendir(RECORDING_DIR);
+    if (!dir) return ESP_FAIL;
+    *count = 0;
+    name[0] = 0;
+    memset(info, 0, sizeof(*info));
+    esp_err_t err = ESP_OK;
+    struct dirent *entry;
+    while ((entry = readdir(dir))) {
+        if (!storage_valid_name(entry->d_name)) continue;
+        recording_info_t candidate;
+        esp_err_t candidate_err = storage_recording_info(entry->d_name, &candidate);
+        if (candidate_err == ESP_ERR_NOT_SUPPORTED || candidate_err == ESP_ERR_NOT_FOUND)
+            continue;
+        if (candidate_err != ESP_OK) { err = candidate_err; break; }
+        if ((*count)++ == index) {
+            if (strlen(entry->d_name) >= capacity) {
+                err = ESP_ERR_INVALID_SIZE;
+                break;
+            }
+            strcpy(name, entry->d_name);
+            *info = candidate;
+        }
+    }
+    closedir(dir);
+    return err;
+}
+esp_err_t storage_catalog_page(size_t offset, size_t limit,
+                               recording_catalog_item_t *items, size_t capacity,
+                               size_t *count, size_t *total)
+{
+    if (!items || !capacity || !count || !total || limit > capacity)
+        return ESP_ERR_INVALID_ARG;
+    DIR *dir = opendir(RECORDING_DIR);
+    if (!dir) return ESP_FAIL;
+    *count = *total = 0;
+    esp_err_t err = ESP_OK;
+    struct dirent *entry;
+    while ((entry = readdir(dir))) {
+        if (!storage_valid_name(entry->d_name)) continue;
+        recording_info_t info;
+        esp_err_t item_err = storage_recording_info(entry->d_name, &info);
+        if (item_err == ESP_ERR_NOT_SUPPORTED || item_err == ESP_ERR_NOT_FOUND)
+            continue;
+        if (item_err != ESP_OK) { err = item_err; break; }
+        size_t valid_index = (*total)++;
+        if (valid_index < offset || *count >= limit) continue;
+        recording_catalog_item_t *item = &items[(*count)++];
+        strcpy(item->name, entry->d_name);
+        item->info = info;
+    }
+    closedir(dir);
+    return err;
 }

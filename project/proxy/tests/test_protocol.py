@@ -79,3 +79,29 @@ def test_bad_control(data):
 def test_malformed_control(text):
     with pytest.raises(ProtocolError):
         parse_control(text)
+
+
+def test_v2_hello_metadata_is_strict_without_changing_v1():
+    context = {"format": "ogg_opus", "length": 262144, "sha256": "a" * 64}
+    hello = {"v": 2, "type": "hello", "sample_rate": 16000, "channels": 1,
+             "format": "pcm16", "frame_samples": 320, "context": context}
+    assert parse_control(json.dumps(hello), 2) == hello
+    with pytest.raises(ProtocolError):
+        parse_control(json.dumps(hello))
+    v1 = dict(hello)
+    v1["v"] = 1
+    del v1["context"]
+    assert parse_control(json.dumps(v1)) == v1
+
+
+@pytest.mark.parametrize("context", [
+    {"format": "ogg_opus", "length": True, "sha256": "a" * 64},
+    {"format": "ogg_opus", "length": 262145, "sha256": "a" * 64},
+    {"format": "ogg_opus", "length": 0, "sha256": "A" * 64},
+    {"format": "ogg", "length": 0, "sha256": "a" * 64},
+])
+def test_v2_hello_rejects_malformed_context_metadata(context):
+    hello = {"v": 2, "type": "hello", "sample_rate": 16000, "channels": 1,
+             "format": "pcm16", "frame_samples": 320, "context": context}
+    with pytest.raises(ProtocolError):
+        parse_control(json.dumps(hello), 2)

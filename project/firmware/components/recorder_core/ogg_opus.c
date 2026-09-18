@@ -119,7 +119,7 @@ static bool flush_audio(ogg_opus_writer_t *w, bool eos)
 bool ogg_opus_writer_begin(ogg_opus_writer_t *w, FILE *file, uint32_t serial,
                            uint16_t pre_skip)
 {
-    if (!w || !file || !serial || !pre_skip) return false;
+    if (!w || !file || !serial) return false;
     memset(w, 0, sizeof(*w));
     w->file = file; w->serial = serial; w->pre_skip = pre_skip;
     uint8_t head[19] = {'O','p','u','s','H','e','a','d',1,1};
@@ -251,7 +251,7 @@ bool ogg_opus_parse(FILE *file, uint32_t limit, bool require_eos, ogg_opus_info_
             if (packet_index == 0) {
                 if (sequence != 0 || segments == 0 || i + 1 != segments ||
                     packet_size != 19 || memcmp(packet, "OpusHead", 8) ||
-                    packet[8] != 1 || packet[9] != 1 || get16(packet + 10) == 0 ||
+                    packet[8] != 1 || packet[9] != 1 ||
                     get32(packet + 12) != PCM_RATE || get16(packet + 16) != 0 ||
                     packet[18] != 0) {
                     scratch_destroy(scratch);

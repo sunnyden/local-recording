@@ -26,9 +26,10 @@ static char play_name[65];
 static recording_file_t recording;
 static recording_encoder_t *encoder;
 static uint32_t encoder_padding_frames;
+static rolling_snapshot_t pre_roll;
 static portMUX_TYPE status_lock = portMUX_INITIALIZER_UNLOCKED;
 static audio_meter_t activity;
-static uint32_t generation, total_samples;
+static uint32_t generation, total_samples, pre_roll_samples_status;
 static char status_name[65];
 
 local_status_t local_status(void)
@@ -39,6 +40,7 @@ local_status_t local_status(void)
     local_status_t status = {.mode = atomic_load(&mode), .error = atomic_load(&error_code),
         .samples = atomic_load(&samples), .queue_peak = atomic_load(&peak),
         .overruns = overruns, .generation = generation, .total_samples = total_samples,
+        .pre_roll_samples = pre_roll_samples_status,
         .file_bytes = atomic_load(&file_bytes)};
     uint32_t frames = atomic_load(&codec_frames);
     status.codec_us_average = frames ? atomic_load(&codec_us_total) / frames : 0;
@@ -98,6 +100,28 @@ static void record_worker(void)
     uint8_t packet[OPUS_PACKET_MAX];
     uint32_t encoded_frames = 0;
     xTaskNotifyGive(capture_task);
+    for (uint32_t i = 0; i < pre_roll.frames; ++i) {
+        rolling_packet_t packet_info = pre_roll.packets[i];
+        esp_err_t err = storage_append_history(&recording,
+            pre_roll.data + packet_info.offset, packet_info.bytes, PCM_SAMPLES);
+        if (err != ESP_OK) {
+            fail(err);
+            break;
+        }
+    }
+    if (pre_roll.frames && atomic_load(&error_code) == ESP_OK &&
+        storage_history_done(&recording) != ESP_OK)
+        fail(ESP_FAIL);
+    if (pre_roll.data) {
+        memset(pre_roll.data, 0, pre_roll.data_bytes);
+        heap_caps_free(pre_roll.data);
+    }
+    if (pre_roll.packets) {
+        memset(pre_roll.packets, 0, pre_roll.frames * sizeof(*pre_roll.packets));
+        heap_caps_free(pre_roll.packets);
+    }
+    uint32_t retained_pre_roll = pre_roll.samples;
+    pre_roll = (rolling_snapshot_t){.samples = retained_pre_roll};
     while (!atomic_load(&capture_done) || uxQueueMessagesWaiting(queue)) {
         if (xQueueReceive(queue, &block, pdMS_TO_TICKS(100)) != pdTRUE) continue;
         size_t bytes = 0;
@@ -197,6 +221,7 @@ static void worker(void *unused)
     if (err != ESP_OK) fail(err);
     portENTER_CRITICAL(&status_lock);
     atomic_store(&mode, LOCAL_IDLE);
+    pre_roll = (rolling_snapshot_t){0};
     portEXIT_CRITICAL(&status_lock);
     vTaskDelete(NULL);
 }
@@ -227,6 +252,7 @@ static esp_err_t start(local_mode_t next, const char *name)
     portENTER_CRITICAL(&status_lock);
     ++generation;
     total_samples = 0;
+    pre_roll_samples_status = next == LOCAL_RECORD ? pre_roll.samples : 0;
     activity = (audio_meter_t){0};
     memcpy(status_name, filename, sizeof(status_name));
     atomic_store(&stop_requested, false);
@@ -256,15 +282,38 @@ static esp_err_t start(local_mode_t next, const char *name)
 }
 esp_err_t local_record_start(void)
 {
+    return local_record_start_with_preroll(NULL);
+}
+esp_err_t local_record_start_with_preroll(rolling_snapshot_t *snapshot)
+{
     if (atomic_load(&mode) != LOCAL_IDLE) return ESP_ERR_INVALID_STATE;
+    if (snapshot) {
+        pre_roll = *snapshot;
+        memset(snapshot, 0, sizeof(*snapshot));
+    } else pre_roll = (rolling_snapshot_t){0};
     uint16_t pre_skip = 0;
-    encoder = recording_encoder_create(&pre_skip);
-    if (!encoder) return ESP_ERR_NO_MEM;
+    if (pre_roll.encoder) {
+        encoder = (recording_encoder_t *)pre_roll.encoder;
+        pre_roll.encoder = NULL;
+        pre_skip = pre_roll.encoder_pre_skip;
+    } else {
+        encoder = recording_encoder_create(&pre_skip);
+    }
+    if (!encoder) {
+        if (pre_roll.data) heap_caps_free(pre_roll.data);
+        if (pre_roll.packets) heap_caps_free(pre_roll.packets);
+        pre_roll = (rolling_snapshot_t){0};
+        return ESP_ERR_NO_MEM;
+    }
     uint32_t lookahead = (pre_skip + OPUS_RATE / PCM_RATE - 1) /
         (OPUS_RATE / PCM_RATE);
     encoder_padding_frames = (lookahead + PCM_SAMPLES - 1) / PCM_SAMPLES;
-    esp_err_t err = storage_begin(&recording, pre_skip);
+    esp_err_t err = storage_begin(&recording,
+        pre_roll.frames ? pre_roll.pre_skip : pre_skip);
     if (err != ESP_OK) {
+        if (pre_roll.data) heap_caps_free(pre_roll.data);
+        if (pre_roll.packets) heap_caps_free(pre_roll.packets);
+        pre_roll = (rolling_snapshot_t){0};
         recording_encoder_destroy(encoder); encoder = NULL;
         return err;
     }
@@ -272,6 +321,9 @@ esp_err_t local_record_start(void)
     err = start(LOCAL_RECORD, name ? name + 1 : recording.path);
     if (err != ESP_OK) {
         storage_abort(&recording);
+        if (pre_roll.data) heap_caps_free(pre_roll.data);
+        if (pre_roll.packets) heap_caps_free(pre_roll.packets);
+        pre_roll = (rolling_snapshot_t){0};
         recording_encoder_destroy(encoder); encoder = NULL;
     }
     return err;

@@ -10,6 +10,7 @@ $env:ZIG_LOCAL_CACHE_DIR = Join-Path $build "zig-local-cache"
 $cjson = Join-Path $root "managed_components\espressif__cjson\cJSON"
 $flags = @("-std=c11", "-Wall", "-Wextra", "-Werror", "-D_CRT_SECURE_NO_WARNINGS", "-D_GNU_SOURCE",
     "-DRECORDER_HOST_TEST", "-I", "$root\tests\gui_status_host", "-I", "$root\tests\host",
+    "-I", "$root\components\rolling_audio\include",
     "-I", "$root\components\recorder_core\include", "-I", "$root\components\recorder\include",
     "-I", "$root\components\audio_io\include", "-I", "$root\components\identity\include",
     "-I", "$root\components\voice_client\include", "-I", "$root\components\provisioning\include",

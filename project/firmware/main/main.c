@@ -1,6 +1,8 @@
 #include "board.h"
 #include "audio_io.h"
 #include "recorder.h"
+#include "rolling_audio.h"
+#include "lan_server.h"
 #include "recorder_network.h"
 #include "recorder_provisioning.h"
 #include "identity.h"
@@ -49,10 +51,13 @@ void app_main(void)
     unsigned repaired = 0, failed = 0;
     if (sd == ESP_OK) storage_recover(&repaired, &failed);
     esp_err_t audio = local_audio_init();
+    esp_err_t rolling = audio == ESP_OK ? rolling_audio_init() : audio;
     esp_err_t network = recorder_network_init();
     if (network == ESP_OK) identity_init();
-    ESP_LOGI("recorder", "SD=%s audio=%s recovered=%u failed=%u", esp_err_to_name(sd),
-        esp_err_to_name(audio), repaired, failed);
+    esp_err_t lan = network == ESP_OK ? lan_server_init() : network;
+    ESP_LOGI("recorder", "SD=%s audio=%s rolling=%s LAN=%s recovered=%u failed=%u",
+        esp_err_to_name(sd), esp_err_to_name(audio), esp_err_to_name(rolling),
+        esp_err_to_name(lan), repaired, failed);
 #ifdef CONFIG_RECORDER_GUI
     gui_app_run(sd, audio, repaired, failed);
     return;
@@ -77,9 +82,19 @@ void app_main(void)
         local_status_t state = local_status();
         sync_status_t sync = cloud_sync_status();
         voice_status_t voice = voice_client_status();
+        rolling_audio_set_enabled(!catalog && state.mode == LOCAL_IDLE &&
+                                  !sync.active && !voice.active &&
+                                  !recorder_setup_active());
+        lan_server_set_available(sd == ESP_OK && !catalog &&
+            state.mode == LOCAL_IDLE && !sync.active && !voice.active &&
+            !recorder_setup_active() && recorder_network_ready());
         board_key_t key;
         err = board_key_read(&key);
         if (err != ESP_OK) { key = KEY_NONE; show(13, "KEY I2C ERROR", false); }
+        if (key != KEY_NONE && lan_server_pause() != ESP_OK) {
+            show(10, "LAN BUSY", false);
+            key = KEY_NONE;
+        }
 #ifdef CONFIG_RECORDER_GUI_TEST_INPUT
         ui_input_event_t input;
         if (gui_console_poll(&input)) {
@@ -162,11 +177,29 @@ void app_main(void)
             }
             if (key == KEY_ENTER) {
                 err = ESP_OK;
-                if (catalog) err = filename[0] ? local_play_start(filename) : ESP_ERR_NOT_FOUND;
-                else if (selected == 0) err = sd == ESP_OK && audio == ESP_OK ? local_record_start() : ESP_ERR_INVALID_STATE;
+                if (catalog) {
+                    rolling_audio_set_enabled(false);
+                    err = filename[0] ? local_play_start(filename) : ESP_ERR_NOT_FOUND;
+                } else if (selected == 0) {
+                    if (sd == ESP_OK && audio == ESP_OK) {
+                        rolling_snapshot_t snapshot;
+                        err = rolling_audio_take(&snapshot);
+                        if (err == ESP_OK) err = local_record_start_with_preroll(&snapshot);
+                        else if (err == ESP_ERR_NO_MEM) err = local_record_start();
+                        rolling_snapshot_release(&snapshot);
+                    } else err = ESP_ERR_INVALID_STATE;
+                }
                 else if (selected == 1) { catalog = true; index = 0; redraw = true; }
                 else if (selected == 2) err = sd == ESP_OK ? cloud_sync_start() : ESP_ERR_INVALID_STATE;
-                else if (selected == 3) err = audio == ESP_OK ? voice_client_start() : ESP_ERR_INVALID_STATE;
+                else if (selected == 3) {
+                    if (audio == ESP_OK) {
+                        rolling_snapshot_t snapshot;
+                        err = rolling_audio_take(&snapshot);
+                        if (err == ESP_OK)
+                            err = voice_client_start_with_context(&snapshot);
+                        rolling_snapshot_release(&snapshot);
+                    } else err = ESP_ERR_INVALID_STATE;
+                }
                 else if (selected == 4) err = recorder_setup_start();
                 else { show(10, "NETWORK NOT CONFIGURED", false); }
                 if (err != ESP_OK) show(10, esp_err_to_name(err), false);

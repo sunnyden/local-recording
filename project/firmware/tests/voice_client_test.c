@@ -73,7 +73,7 @@ void vTaskDelay(TickType_t delay)
     clock_us += (int64_t)delay * 1000;
     if (notice_error && notice_time && !error_delivered && clock_us - notice_time >= 100000) {
         error_delivered = true;
-        text_event(current_ws, "{\"v\":1,\"type\":\"error\",\"code\":\"provider_error\"}");
+        text_event(current_ws, "{\"v\":2,\"type\":\"error\",\"code\":\"provider_error\"}");
     }
 }
 void vTaskDelete(void *handle) { (void)handle; }
@@ -141,7 +141,7 @@ static void text_event(esp_websocket_client_handle_t ws, const char *json)
 esp_websocket_client_handle_t esp_websocket_client_init(const esp_websocket_client_config_t *cfg)
 {
     assert(!strcmp(cfg->uri, "wss://proxy.invalid/v1/voice"));
-    assert(!strcmp(cfg->subprotocol, "recorder.voice.v1"));
+    assert(!strcmp(cfg->subprotocol, "recorder.voice.v2"));
     assert(strstr(cfg->headers, "Bearer TEST_API_B_ACCESS"));
     assert(cfg->crt_bundle_attach && cfg->disable_auto_reconnect);
     current_ws = calloc(1, sizeof(struct host_websocket));
@@ -167,7 +167,7 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t ws, const char 
     const char *type = cJSON_GetObjectItemCaseSensitive(json, "type")->valuestring;
     if (!strcmp(type, "hello")) {
         assert(!mic_packets && !audio_running);
-        text_event(ws, "{\"v\":1,\"type\":\"ready\",\"session_id\":\"TEST_SESSION\",\"max_session_seconds\":5}");
+        text_event(ws, "{\"v\":2,\"type\":\"ready\",\"session_id\":\"TEST_SESSION\",\"max_session_seconds\":5}");
     } else if (!strcmp(type, "playback.cleared")) {
         assert(cJSON_GetObjectItemCaseSensitive(json, "epoch")->valueint == 1);
         assert(cJSON_GetObjectItemCaseSensitive(json, "played_samples")->valuedouble == 320);
@@ -190,7 +190,7 @@ int esp_websocket_client_send_bin(esp_websocket_client_handle_t ws, const char *
     assert(voice_advance(&microphone_expected, &frame));
     ++mic_packets;
     if (mic_packets == 1 && !tool_wait_cancel) {
-        text_event(ws, "{\"v\":1,\"type\":\"playback.start\",\"epoch\":1}");
+        text_event(ws, "{\"v\":2,\"type\":\"playback.start\",\"epoch\":1}");
         int16_t pcm[320] = {123};
         uint8_t packet[VOICE_MAX_PACKET];
         voice_frame_t output = {.kind = 2, .epoch = 1, .samples = short_tail ? 127 : 320,
@@ -201,22 +201,22 @@ int esp_websocket_client_send_bin(esp_websocket_client_handle_t ws, const char *
         event(ws, 2, false, packet, 10, 10, 0);
         event(ws, 0, true, packet + 10, 100, packet_size - 10, 0);
         event(ws, 0, true, packet + 110, packet_size - 110, packet_size - 10, 100);
-        if (short_tail) text_event(ws, "{\"v\":1,\"type\":\"playback.end\",\"epoch\":1}");
+        if (short_tail) text_event(ws, "{\"v\":2,\"type\":\"playback.end\",\"epoch\":1}");
     }
     if (mic_packets == 1 && early_start) {
-        text_event(ws, "{\"v\":1,\"type\":\"playback.end\",\"epoch\":1}");
-        text_event(ws, "{\"v\":1,\"type\":\"playback.start\",\"epoch\":2}");
+        text_event(ws, "{\"v\":2,\"type\":\"playback.end\",\"epoch\":1}");
+        text_event(ws, "{\"v\":2,\"type\":\"playback.start\",\"epoch\":2}");
     }
     if (mic_packets == 2 && handoff && !tool_wait_cancel) {
         assert(played == 320 && !queued);
-        text_event(ws, "{\"v\":1,\"type\":\"playback.end\",\"epoch\":1}");
-        text_event(ws, "{\"v\":1,\"type\":\"playback.start\",\"epoch\":2}");
+        text_event(ws, "{\"v\":2,\"type\":\"playback.end\",\"epoch\":1}");
+        text_event(ws, "{\"v\":2,\"type\":\"playback.start\",\"epoch\":2}");
         int16_t pcm[320] = {123}; uint8_t packet[VOICE_MAX_PACKET];
         voice_frame_t next = {.kind = 2, .epoch = 2, .samples = 320, .pcm = (const uint8_t *)pcm};
         assert(voice_encode(packet, sizeof(packet), &next));
         event(ws, 2, true, packet, sizeof(packet), sizeof(packet), 0);
     } else if (mic_packets == 2 && !short_tail && !tool_wait_cancel) {
-        text_event(ws, "{\"v\":1,\"type\":\"playback.clear\",\"epoch\":1}");
+        text_event(ws, "{\"v\":2,\"type\":\"playback.clear\",\"epoch\":1}");
         int16_t pcm[320] = {123}; uint8_t packet[VOICE_MAX_PACKET];
         voice_frame_t stale = {.kind = 2, .epoch = 1, .sequence = 1, .sample = 320,
             .samples = 320, .pcm = (const uint8_t *)pcm};
@@ -225,12 +225,12 @@ int esp_websocket_client_send_bin(esp_websocket_client_handle_t ws, const char *
     }
     if (mic_packets == 2 && (stopping_notice || notice_error)) {
         notice_time = clock_us;
-        text_event(ws, "{\"v\":1,\"type\":\"state\",\"state\":\"stopping\"}");
+        text_event(ws, "{\"v\":2,\"type\":\"state\",\"state\":\"stopping\"}");
     }
     if (mic_packets == 2 && close_only) event(ws, 8, true, NULL, 0, 0, 0);
     if (mic_packets == 8 && tool_wait_cancel) voice_client_stop();
     else if (mic_packets == 8 && !stopping_notice && !notice_error && !close_only)
-        text_event(ws, "{\"v\":1,\"type\":\"stop\"}");
+        text_event(ws, "{\"v\":2,\"type\":\"stop\"}");
     return length;
 }
 bool esp_websocket_client_is_connected(esp_websocket_client_handle_t ws) { return ws->connected; }
@@ -240,7 +240,7 @@ esp_err_t esp_websocket_client_stop(esp_websocket_client_handle_t ws)
     assert(voice_client_start() == ESP_ERR_INVALID_STATE);
     if (late_ready_during_stop) {
         unsigned previous_starts = audio_starts;
-        text_event(ws, "{\"v\":1,\"type\":\"ready\",\"session_id\":\"LATE\",\"max_session_seconds\":5}");
+        text_event(ws, "{\"v\":2,\"type\":\"ready\",\"session_id\":\"LATE\",\"max_session_seconds\":5}");
         assert(audio_starts == previous_starts);
     }
     ws->connected = false;

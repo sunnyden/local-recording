@@ -110,7 +110,10 @@ void gui_render(gui_canvas_t *c,const gui_model_t *m,const gui_secret_t *secret)
         gui_icon(c,172,icon_top(m->sd_ok?GUI_ICON_CHECK:GUI_ICON_WARNING,24,
                  status.y,status.h),m->sd_ok?GUI_ICON_CHECK:GUI_ICON_WARNING,24,
                  m->sd_ok?GREEN:RED);
-        gui_text(c,208,status.y+17,92,GUI_FONT_TITLE,m->sd_ok?"Ready":"Insert SD",
+        if(m->rolling_active)snprintf(s,sizeof(s),"Context %lus",
+                                     (unsigned long)m->rolling_seconds);
+        else snprintf(s,sizeof(s),"%s",m->sd_ok?"Ready":"Insert SD");
+        gui_text(c,208,status.y+17,92,GUI_FONT_TITLE,s,
                  m->sd_ok?GREEN:RED);
         if(m->note[0]) {
             gui_fill(c,(gui_rect_t){12,204,296,14},PAPER);
@@ -124,6 +127,10 @@ void gui_render(gui_canvas_t *c,const gui_model_t *m,const gui_secret_t *secret)
         center(c,61,GUI_FONT_TIMER,s,INK);
         bars(c,123,108,m->active?m->level:0,RED);
         button(c,153,m->active?"Save & stop":"Saved on SD",RED);
+        if(m->pre_roll_seconds) {
+            snprintf(s,sizeof(s),"Pre-roll: %lus",(unsigned long)m->pre_roll_seconds);
+            hint(c,12,178,296,s);
+        }
         hint(c,12,193,296,m->filename);
         footer="0 / 2 Save & stop";
         break;

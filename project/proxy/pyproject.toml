@@ -17,6 +17,7 @@ dependencies = [
   "websockets==16.0",
   "numpy==2.4.2",
   "soxr==1.0.0",
+  "av==16.0.1",
 ]
 
 [project.optional-dependencies]

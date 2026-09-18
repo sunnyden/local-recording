@@ -301,3 +301,24 @@ The proxy accepts a separately generated FFmpeg Ogg Opus reference and all
 firmware host, GUI/status, repository, and proxy tests pass. The board validation
 profile keeps credentials disabled, so live authenticated OneDrive/Azure
 transcription was not exercised on the device.
+
+### Rolling context validation (2026-09-16)
+
+The rolling Home buffer reached exactly 480,000 samples / 30 seconds using
+about 91.5 KiB of encoded packet storage with zero I2S overruns. Record handoff
+transfers the same encoder state, prepends the full history, performs one
+durable history checkpoint, and continues foreground capture. A hardware run
+saved 30 seconds pre-roll plus 14.9 seconds foreground with zero overruns and
+separate elapsed/pre-roll counters.
+
+`recorder.voice.v2` uploaded a frozen rolling snapshot to the deployed proxy,
+which created a server-ID-assigned user `input_audio` item; the live session
+remained active and closed normally on device Back. Proxy tests verify strict
+chunk/hash/Ogg bounds, in-memory PyAV decoding, VAD-disabled context commit,
+matching user-item confirmation, no response creation for context, VAD restore,
+and v1 compatibility. The full proxy suite passes 434 tests.
+
+The normal GUI/configured-proxy image is 1,805,200 bytes, leaving 1,340,528
+bytes in the installed 3 MiB app partition. It was digest-verified and flashed
+only at `0x10000`; the final boot reports SD, audio, and rolling initialization
+as `ESP_OK`.

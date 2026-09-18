@@ -159,6 +159,17 @@ def test_audio_mapping():
     assert map_event({"type": "response.audio_transcript.delta", "delta": "private"}) is None
 
 
+def test_audio_delta_maximum_is_exact():
+    data = {
+        "type": "response.audio.delta", "response_id": "r", "item_id": "i",
+        "content_index": 0, "delta": base64.b64encode(bytes(65536)).decode(),
+    }
+    assert len(map_event(data).pcm) == 65536
+    data["delta"] = base64.b64encode(bytes(65538)).decode()
+    with pytest.raises(ProviderError):
+        map_event(data)
+
+
 @pytest.mark.parametrize("data", [
     {"type": "error", "error": {"message": "secret audio"}},
     {"type": "response.output_audio.delta"},  # Direct OpenAI GA is not Voice Live v1.
@@ -296,4 +307,116 @@ async def test_raw_connection_network_failure_redacted(settings, monkeypatch):
     with pytest.raises(ProviderError) as exc:
         await provider.open()
     assert not str(exc.value)
+    await provider.close()
+
+
+async def test_context_handshake_creates_chunked_audio_item_and_no_response(settings, monkeypatch):
+    enabled = {"type": "session.updated", "session": {
+        **session_configuration()["session"], "model": settings.model,
+    }}
+    incoming = [
+        {"type": "session.created"}, enabled,
+        {"type": "conversation.item.created",
+         "item": {"id": "server-context", "type": "message", "role": "user"}},
+    ]
+    socket = SimpleNamespace(
+        recv=AsyncMock(side_effect=[json.dumps(value) for value in incoming]),
+        send=AsyncMock(), close=AsyncMock(),
+    )
+    monkeypatch.setattr(providers_module, "connect", AsyncMock(return_value=socket))
+    provider = VoiceLive(settings)
+    await provider.credential.close()
+    provider.credential = SimpleNamespace(
+        get_token=AsyncMock(return_value=SimpleNamespace(token="token")), close=AsyncMock(),
+    )
+    await provider.open(bytes(1000))
+    sent = [json.loads(call.args[0]) for call in socket.send.call_args_list]
+    assert [value["type"] for value in sent] == [
+        "session.update", "conversation.item.create",
+    ]
+    assert "id" not in sent[1]["item"]
+    assert sent[1]["item"]["content"][0]["type"] == "input_audio"
+    assert all(value["type"] != "response.create" for value in sent)
+    await provider.close()
+
+
+async def test_empty_context_skips_context_item(settings, monkeypatch):
+    incoming = [
+        {"type": "session.created"},
+        {"type": "session.updated", "session": {
+            **session_configuration()["session"], "model": settings.model,
+        }},
+    ]
+    socket = SimpleNamespace(
+        recv=AsyncMock(side_effect=[json.dumps(value) for value in incoming]),
+        send=AsyncMock(), close=AsyncMock(),
+    )
+    monkeypatch.setattr(providers_module, "connect", AsyncMock(return_value=socket))
+    provider = VoiceLive(settings)
+    await provider.credential.close()
+    provider.credential = SimpleNamespace(
+        get_token=AsyncMock(return_value=SimpleNamespace(token="token")), close=AsyncMock(),
+    )
+    await provider.open(b"")
+    sent = [json.loads(call.args[0]) for call in socket.send.call_args_list]
+    assert [value["type"] for value in sent] == ["session.update"]
+    await provider.close()
+
+
+@pytest.mark.parametrize("confirmation", [
+    {"type": "input_audio_buffer.committed", "item_id": ""},
+    {"type": "conversation.item.created",
+     "item": {"id": "item", "type": "message", "role": "assistant"}},
+])
+async def test_context_confirmation_must_be_valid(settings, monkeypatch, confirmation):
+    incoming = [
+        {"type": "session.created"},
+        {"type": "session.updated", "session": {
+            **session_configuration()["session"], "model": settings.model,
+        }},
+        confirmation,
+    ]
+    socket = SimpleNamespace(
+        recv=AsyncMock(side_effect=[json.dumps(value) for value in incoming]),
+        send=AsyncMock(), close=AsyncMock(),
+    )
+    monkeypatch.setattr(providers_module, "connect", AsyncMock(return_value=socket))
+    provider = VoiceLive(settings)
+    await provider.credential.close()
+    provider.credential = SimpleNamespace(
+        get_token=AsyncMock(return_value=SimpleNamespace(token="token")), close=AsyncMock(),
+    )
+    with pytest.raises(ProviderError):
+        await provider.open(bytes(2))
+    assert all(
+        json.loads(call.args[0])["type"] != "response.create"
+        for call in socket.send.call_args_list
+    )
+    await provider.close()
+
+
+async def test_context_confirmation_requires_server_item_id(settings, monkeypatch):
+    incoming = [
+        {"type": "session.created"},
+        {"type": "session.updated", "session": {
+            **session_configuration()["session"], "model": settings.model,
+        }},
+        {"type": "conversation.item.created",
+         "item": {"id": "", "type": "message", "role": "user"}},
+    ]
+    socket = SimpleNamespace(
+        recv=AsyncMock(side_effect=[json.dumps(value) for value in incoming]),
+        send=AsyncMock(), close=AsyncMock(),
+    )
+    monkeypatch.setattr(providers_module, "connect", AsyncMock(return_value=socket))
+    provider = VoiceLive(settings)
+    await provider.credential.close()
+    provider.credential = SimpleNamespace(
+        get_token=AsyncMock(return_value=SimpleNamespace(token="token")), close=AsyncMock(),
+    )
+    with pytest.raises(ProviderError):
+        await provider.open(bytes(2))
+    sent = [json.loads(call.args[0])["type"] for call in socket.send.call_args_list]
+    assert sent.count("conversation.item.create") == 1
+    assert "response.create" not in sent
     await provider.close()

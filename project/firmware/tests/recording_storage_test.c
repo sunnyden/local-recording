@@ -84,6 +84,18 @@ int main(void)
     assert(f && ogg_opus_parse(f, 0, true, &info) &&
            info.samples == 50 * PCM_SAMPLES - 104);
     fclose(f);
+    recording_info_t recording_info;
+    assert(storage_recording_info("AudioRecording_20260907_220536_002.opus",
+                                  &recording_info) == ESP_OK);
+    assert(recording_info.bytes > 0 &&
+           recording_info.samples == 50 * PCM_SAMPLES - 104 &&
+           recording_info.has_time && recording_info.time.utc == clock_now);
+    FILE *opened = NULL;
+    assert(storage_open_recording("AudioRecording_20260907_220536_002.opus",
+                                  &opened, &recording_info) == ESP_OK);
+    assert(opened && ftell(opened) == 0 && !fclose(opened));
+    assert(storage_recording_info("../bad.opus", &recording_info) ==
+           ESP_ERR_INVALID_ARG);
     recording_file_t aborted;
     assert(storage_begin(&aborted, 312) == ESP_OK);
     char aborted_part[128], aborted_meta[128], aborted_checkpoint[128];

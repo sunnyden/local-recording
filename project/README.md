@@ -19,10 +19,24 @@ playback, synchronization or AI as mutually exclusive modes. AI capture and
 speaker playback are simultaneous; Voice Live owns VAD and echo cancellation.
 KEY3 moves up, KEY1 down, KEY0 enters/confirms, KEY2 exits/goes back.
 
+While the GUI is idle on Home, a visible rolling microphone buffer keeps up to
+the latest 30 seconds as Opus packets in PSRAM only. Record prepends that
+history to the saved file. AI chat uploads the frozen Ogg Opus history through
+`recorder.voice.v2`; the proxy commits it as a non-responding user audio context
+item before live listening starts. Rolling audio is cleared when leaving Home
+and is never written to SD or sent until the user explicitly starts an action.
+
 OneDrive synchronization is explicitly selected and retains the local `.opus`.
 The destination is root-level `local-recording/`, not the special AppFolder.
 MP3, background sync, wake-word activation and actual remote tool execution
 are outside this MVP.
+
+While the healthy GUI is on Home and no foreground operation is active, the
+recorder also exposes a read-only LAN API at
+`http://embedded-recorder.local/v1/recordings`. It lists validated recordings
+with bounded offset pagination and streams exact `.opus` files. The endpoint is
+unauthenticated with wildcard CORS by design and returns `503` whenever the
+device leaves Home/idle.
 
 ## Identity and privacy
 

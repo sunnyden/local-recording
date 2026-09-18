@@ -2,6 +2,7 @@
 #include "esp_err.h"
 #include <stdbool.h>
 #include <stdint.h>
+typedef struct rolling_snapshot rolling_snapshot_t;
 /* Read-only activity (0..255), published at most every 100ms. Output is gated
    by actual played-sample advancement, not queued prefill or the wire state.
    Stale levels expire after 250ms; stop/inactive/new generations clear them. */
@@ -14,5 +15,6 @@ typedef struct {
     bool playback_active;
 } voice_status_t;
 esp_err_t voice_client_start(void);
+esp_err_t voice_client_start_with_context(rolling_snapshot_t *snapshot);
 void voice_client_stop(void);
 voice_status_t voice_client_status(void);

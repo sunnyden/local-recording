@@ -13,7 +13,8 @@ typedef struct {
     unsigned selected, page_selected, count, page_start;
     bool demo, online, sd_ok, time_ok, active, error, playback, pressure, calibration;
     uint8_t level;
-    uint32_t seconds, total_seconds, generation;
+    uint32_t seconds, total_seconds, pre_roll_seconds, rolling_seconds, generation;
+    bool rolling_active;
     unsigned progress, expires;
     char title[40], detail[80], note[80], filename[65];
     char names[3][65], receipts[3][40];
